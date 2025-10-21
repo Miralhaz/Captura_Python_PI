@@ -86,7 +86,7 @@ while contador < duracao:
         processos.append(dado)
 
     # DADOS CPU
-    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Temeperatura', '{temperatura_cpu_atual}', '°C', id from componente where tipo = 'CPU'")
+    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Temperatura', '{temperatura_cpu_atual}', '°C', id from componente where tipo = 'CPU'")
     conexao.commit()
     cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Uso', '{cpu}', '%', id from componente where tipo = 'CPU'")
     conexao.commit()
@@ -94,7 +94,7 @@ while contador < duracao:
     cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'RAM', '{ram}','%', id from componente where tipo = 'CPU'")
     conexao.commit()
     # DADOS DISCO
-    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Temeperatura', '{temperatura_disco_atual}', '°C', id from componente where tipo = 'DISCO'")
+    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Temperatura', '{temperatura_disco_atual}', '°C', id from componente where tipo = 'DISCO'")
     conexao.commit()
     cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Uso', '{disco}', '%', id from componente where tipo = 'DISCO'")
     conexao.commit()
