@@ -181,7 +181,6 @@ print("\nIniciando monitoramento...")
 print("\n------- CAPTURA DE CPU, RAM E DISCO -------")
 
 while contador < duracao:
-    user = psutil.users()[0].name
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cpu = psutil.cpu_percent()  
     ram = psutil.virtual_memory().percent  
@@ -203,7 +202,7 @@ while contador < duracao:
     temperatura_disco_atual = disco_sensor.current
 
     dado = {
-        'user': user
+        'nomeMaquina': nomeMaquina
         ,'timestamp':timestamp
         ,'cpu': cpu
         ,'ram': ram
@@ -217,7 +216,7 @@ while contador < duracao:
     # Salva no CSV
     data.append(dado)
 
-    print(f"\n Usuário: {user} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos}")
+    print(f"\n Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos}")
   
     for proc in psutil.process_iter():
         dado = {
@@ -236,7 +235,7 @@ while contador < duracao:
     conexao.commit()
 
     # DADOS RAM
-    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'RAM', '{ram}','%', id from componente where tipo = 'CPU'")
+    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'RAM', '{ram}','%', id from componente where tipo = 'RAM'")
     conexao.commit()
 
     # DADOS DISCO
