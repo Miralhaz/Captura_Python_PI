@@ -5,7 +5,7 @@ import mysql.connector as mysql
 from datetime import datetime
 import time
 import socket
-import boto3
+#import boto3
 
 
 # resgatando ip da maquina
@@ -54,14 +54,14 @@ print("\n=== Iniciando Captura de Servidor ===")
 nomeMaquina = platform.node()
 print(f"Nome da Máquina: {nomeMaquina}")
 # Modelado para bd Infomotion
-cur.execute("SELECT id FROM servidor WHERE nome_maquina = %s", (nomeMaquina,))
+cur.execute("SELECT id FROM servidor WHERE apelido = %s", (nomeMaquina,))
 resultado_select = cur.fetchone()
 
 if resultado_select:
     id_servidor = resultado_select[0]
     print(f"Servidor já cadastrado com ID {id_servidor}")
 else:
-    cur.execute("INSERT INTO servidor (nome_maquina) VALUES (%s)", (nomeMaquina,))
+    cur.execute("INSERT INTO servidor (apelido) VALUES (%s)", (nomeMaquina,))
     conexao.commit()
     cur.execute("SELECT LAST_INSERT_ID()")
     id_servidor = cur.fetchone()[0]
@@ -108,7 +108,7 @@ INSERT INTO infomotion.componentes
 VALUES (%s, %s, %s, %s, %s, %s)
 """
 
-valores = ('CPU', id_servidor, 'CPU_01', dataAtual, True, nomeMaquina)
+valores = ('CPU', id_servidor, 1, 'CPU_RYZEN5', dataAtual, 1)
 
 cur.execute(sql, valores)
 conexao.commit()
@@ -295,15 +295,15 @@ print("Finalizando monitoramento...")
 # Fim do script de capturar metricas
 # Enviando o CSV para o bucket na ac2
 
-s3 = boto3.client('s3')
-# Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
+# s3 = boto3.client('s3')
+# # Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
 
-nome_bucket = 'infomotion.raw'
+# nome_bucket = 'infomotion.raw'
 
-s3.upload_file('data.csv', nome_bucket, 'CSVs-dados-registrados/data.csv')
-# s3.upload_file('processos.csv', nome_bucket, 'CSVs-processos-registrados/processos.csv')
+# s3.upload_file('data.csv', nome_bucket, 'CSVs-dados-registrados/data.csv')
+# # s3.upload_file('processos.csv', nome_bucket, 'CSVs-processos-registrados/processos.csv')
 
-print("CSV enviado com sucesso!!")
+# print("CSV enviado com sucesso!!")
 
 
 # CSV enviado para a pasta CSVs-registrados dentro do bucket RAW
