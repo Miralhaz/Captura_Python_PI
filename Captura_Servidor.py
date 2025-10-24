@@ -5,15 +5,13 @@ import mysql.connector as mysql
 from datetime import datetime
 import time
 import socket
+import boto3
 
 
 # resgatando ip da maquina
 ip = 0
 def obter_ip_maquina():
-    """
-    Função para obter o endereço IP da máquina local (IPv4) em Ubuntu usando psutil.
-    Retorna o primeiro endereço IP não-loopback encontrado.
-    """
+    # Função para pegar IP Ipv4 da máquina
     for interface, enderecos in psutil.net_if_addrs().items():
         for endereco in enderecos:
             if endereco.family == socket.AF_INET and not endereco.address.startswith('127.'):
@@ -56,8 +54,19 @@ print("\n=== Iniciando Captura de Servidor ===")
 nomeMaquina = platform.node()
 print(f"Nome da Máquina: {nomeMaquina}")
 # Modelado para bd Infomotion
-cur.execute(f"insert into servidor (fk_empresa, apelido, ip, dt_cadastro, ativo) values (1, '{nomeMaquina}', '{ip}', '{dataAtual}', true)")
-conexao.commit()
+cur.execute("SELECT id FROM servidor WHERE nome_maquina = %s", (nomeMaquina,))
+resultado_select = cur.fetchone()
+
+if resultado_select:
+    id_servidor = resultado_select[0]
+    print(f"Servidor já cadastrado com ID {id_servidor}")
+else:
+    cur.execute("INSERT INTO servidor (nome_maquina) VALUES (%s)", (nomeMaquina,))
+    conexao.commit()
+    cur.execute("SELECT LAST_INSERT_ID()")
+    id_servidor = cur.fetchone()[0]
+    print(f"Servidor cadastrado com ID {id_servidor}")
+
 print("\n=== Servidor Capturado ===")
 #fim do script que captura e joga o nome do servidor para o banco
 
@@ -96,13 +105,10 @@ print(f"Nome da Máquina: {nomeMaquina} | CPU: {uso}% | Ram total: {ramTotal}GB 
 sql = """
 INSERT INTO infomotion.componentes 
 (tipo, fk_servidor, numero_serie, apelido, dt_cadastro, ativo)
-SELECT 
-    %s, s.id, %s, %s, %s, %s
-FROM servidor AS s
-WHERE s.apelido = %s;
+VALUES (%s, %s, %s, %s, %s, %s)
 """
 
-valores = ('CPU', '01', 'CPU_01', dataAtual, True, nomeMaquina)
+valores = ('CPU', id_servidor, 'CPU_01', dataAtual, True, nomeMaquina)
 
 cur.execute(sql, valores)
 conexao.commit()
@@ -237,7 +243,8 @@ while True:
     temperatura_disco_atual = disco_sensor.current
 
     dado = {
-        'nomeMaquina': nomeMaquina
+        'fk_servidor': id_servidor
+        ,'nomeMaquina': nomeMaquina
         ,'timestamp':timestamp
         ,'cpu': cpu
         ,'ram': ram
@@ -286,3 +293,17 @@ print(df)
 
 print("Finalizando monitoramento...")
 # Fim do script de capturar metricas
+# Enviando o CSV para o bucket na ac2
+
+s3 = boto3.client('s3')
+# Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
+
+nome_bucket = 'infomotion.raw'
+
+s3.upload_file('data.csv', nome_bucket, 'CSVs-dados-registrados/data.csv')
+# s3.upload_file('processos.csv', nome_bucket, 'CSVs-processos-registrados/processos.csv')
+
+print("CSV enviado com sucesso!!")
+
+
+# CSV enviado para a pasta CSVs-registrados dentro do bucket RAW
