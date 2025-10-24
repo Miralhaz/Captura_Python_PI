@@ -9,7 +9,7 @@ import socket
 
 
 # resgatando ip da maquina
-ip = 0
+ipmaq = 0.0
 def obter_ip_maquina():
     # Função para pegar IP Ipv4 da máquina
     for interface, enderecos in psutil.net_if_addrs().items():
@@ -21,14 +21,11 @@ def obter_ip_maquina():
 ip = obter_ip_maquina()
 if ip:
     print(f"O IP da sua máquina Ubuntu é: {ip}")
+    ipmaq = ip
 else:
     print("Não foi possível encontrar um endereço IP válido. Verifique se há uma conexão de rede ativa.")
 
 
-
-dataAtual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-#Esse script pega o nome do servidor e joga para o banco
 print("Credenciais do banco de dados MySQL")
 opcaouser = "aluno"
 opcaopassword = "20212412Wi@"
@@ -53,7 +50,7 @@ print("\n")
 print("\n=== Iniciando Captura de Servidor ===")
 nomeMaquina = platform.node()
 print(f"Nome da Máquina: {nomeMaquina}")
-# Modelado para bd Infomotion
+# Cadastra servidor no banco
 cur.execute("SELECT id FROM servidor WHERE apelido = %s", (nomeMaquina,))
 resultado_select = cur.fetchone()
 
@@ -61,7 +58,7 @@ if resultado_select:
     id_servidor = resultado_select[0]
     print(f"Servidor já cadastrado com ID {id_servidor}")
 else:
-    cur.execute("INSERT INTO servidor (apelido) VALUES (%s)", (nomeMaquina,))
+    cur.execute("INSERT INTO servidor (apelido,ip) VALUES (%s, %s)", (nomeMaquina, ipmaq))
     conexao.commit()
     cur.execute("SELECT LAST_INSERT_ID()")
     id_servidor = cur.fetchone()[0]
@@ -104,11 +101,11 @@ print(f"Nome da Máquina: {nomeMaquina} | CPU: {uso}% | Ram total: {ramTotal}GB 
 # Modelado para bd Infomotion
 sql = """
 INSERT INTO infomotion.componentes 
-(tipo, fk_servidor, numero_serie, apelido, dt_cadastro, ativo)
-VALUES (%s, %s, %s, %s, %s, %s)
+(tipo, fk_servidor, numero_serie, apelido, ativo)
+VALUES (%s, %s, %s, %s, %s)
 """
 
-valores = ('CPU', id_servidor, 1, 'CPU_RYZEN5', dataAtual, 1)
+valores = ('CPU', id_servidor, 1, 'CPU_RYZEN5', 1)
 
 cur.execute(sql, valores)
 conexao.commit()
