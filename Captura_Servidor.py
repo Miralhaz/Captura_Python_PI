@@ -4,14 +4,37 @@ import pandas as pd
 import mysql.connector as mysql
 from datetime import datetime
 import time
+import socket
+
+
+# resgatando ip da maquina
+ip = 0
+def obter_ip_maquina():
+    """
+    Função para obter o endereço IP da máquina local (IPv4) em Ubuntu usando psutil.
+    Retorna o primeiro endereço IP não-loopback encontrado.
+    """
+    for interface, enderecos in psutil.net_if_addrs().items():
+        for endereco in enderecos:
+            if endereco.family == socket.AF_INET and not endereco.address.startswith('127.'):
+                return endereco.address
+    return None
+# Exemplo de uso
+ip = obter_ip_maquina()
+if ip:
+    print(f"O IP da sua máquina Ubuntu é: {ip}")
+else:
+    print("Não foi possível encontrar um endereço IP válido. Verifique se há uma conexão de rede ativa.")
 
 
 
-#Esse script pega o nome do servidor e joga para o bancoalun
+dataAtual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+#Esse script pega o nome do servidor e joga para o banco
 print("Credenciais do banco de dados MySQL")
-opcaouser = input("Digite seu usuario:")
-opcaopassword = input("Digite sua senha:")
-opcaodatabase = input("Digite o nome da db:")
+opcaouser = "aluno"
+opcaopassword = "20212412Wi@"
+opcaodatabase = "infomotion"
 
 try:
     conexao = mysql.connect(
@@ -32,7 +55,8 @@ print("\n")
 print("\n=== Iniciando Captura de Servidor ===")
 nomeMaquina = platform.node()
 print(f"Nome da Máquina: {nomeMaquina}")
-cur.execute(f"insert into servidor (nome_maquina) values ('{nomeMaquina}')")
+# Modelado para bd Infomotion
+cur.execute(f"insert into servidor (fk_empresa, apelido, ip, dt_cadastro, ativo) values (1, '{nomeMaquina}', '{ip}', '{dataAtual}', true)")
 conexao.commit()
 print("\n=== Servidor Capturado ===")
 #fim do script que captura e joga o nome do servidor para o banco
@@ -67,12 +91,23 @@ discoUsado = psutil.disk_usage("/").percent
 
 print(f"Nome da Máquina: {nomeMaquina} | CPU: {uso}% | Ram total: {ramTotal}GB | Ram em Uso: {ramUsada}% | Disco total: {discoTotal}GB | Disco em uso: {discoUsado}%")
 
-cur.execute(f"insert into componente (tipo, fk_servidor) select 'CPU', id from servidor where nome_maquina = '{nomeMaquina}';")
+
+# Modelado para bd Infomotion
+sql = """
+INSERT INTO infomotion.componentes 
+(tipo, fk_servidor, numero_serie, apelido, dt_cadastro, ativo)
+SELECT 
+    %s, s.id, %s, %s, %s, %s
+FROM servidor AS s
+WHERE s.apelido = %s;
+"""
+
+valores = ('CPU', '01', 'CPU_01', dataAtual, True, nomeMaquina)
+
+cur.execute(sql, valores)
 conexao.commit()
-cur.execute(f"insert into componente (tipo, fk_servidor) select 'RAM', id from servidor where nome_maquina = '{nomeMaquina}';")
-conexao.commit()
-cur.execute(f"insert into componente (tipo, fk_servidor) select 'DISCO', id from servidor where nome_maquina = '{nomeMaquina}';")
-conexao.commit()
+
+
 
 print("\n=== Componentes capturados ===")
 #fim do script que captura informações do componente
@@ -84,81 +119,81 @@ time.sleep(1)
 
 
 #Esse script pega as especificações dos componentes, como quantidade de total de ram
-contador = 1
-qtdParticoes = 0
-data = []
+# contador = 1
+# qtdParticoes = 0
+# data = []
 
-print("\n------- Iniciando Captura de Especificações de Hardware -------")
-
-
-swapTotal = round(psutil.swap_memory().total / (1024**3),2)
-ramTotal = round(psutil.virtual_memory().total / (1024**3),2)
-discoTotal = round(psutil.disk_usage("/").total / (1024**3),2)
-Particoes = psutil.disk_partitions()
-nucleosFisicos = psutil.cpu_count(logical=False)
-nucleosLogicos = psutil.cpu_count(logical=True)
-timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-for item in Particoes:
-    qtdParticoes += 1
-
-print(f"Swap total: {swapTotal}")
-print(f"Ram total: {ramTotal}")
-print(f"Quantidade de CPUs: {nucleosFisicos}")
-print(f"Quantidade de núcleos: {nucleosLogicos}")
-print(f"Quantidade de partições: {qtdParticoes}")
-
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Swap total (GB)', '{swapTotal}', id from componente where tipo = 'DISCO';")
-conexao.commit()
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Ram total (GB)', '{ramTotal}', id from componente where tipo = 'RAM';")
-conexao.commit()
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de núcleos fisicos', '{nucleosFisicos}', id from componente where tipo = 'CPU';")
-conexao.commit()
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de núcleos lógicos', '{nucleosLogicos}', id from componente where tipo = 'CPU';")
-conexao.commit()
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de partições', '{qtdParticoes}', id from componente where tipo = 'DISCO';")
-conexao.commit()
+# print("\n------- Iniciando Captura de Especificações de Hardware -------")
 
 
-for particao in Particoes:
+# swapTotal = round(psutil.swap_memory().total / (1024**3),2)
+# ramTotal = round(psutil.virtual_memory().total / (1024**3),2)
+# discoTotal = round(psutil.disk_usage("/").total / (1024**3),2)
+# Particoes = psutil.disk_partitions()
+# nucleosFisicos = psutil.cpu_count(logical=False)
+# nucleosLogicos = psutil.cpu_count(logical=True)
+# timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# for item in Particoes:
+#     qtdParticoes += 1
+
+# print(f"Swap total: {swapTotal}")
+# print(f"Ram total: {ramTotal}")
+# print(f"Quantidade de CPUs: {nucleosFisicos}")
+# print(f"Quantidade de núcleos: {nucleosLogicos}")
+# print(f"Quantidade de partições: {qtdParticoes}")
+
+# cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Swap total (GB)', '{swapTotal}', id from componente where tipo = 'DISCO';")
+# conexao.commit()
+# cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Ram total (GB)', '{ramTotal}', id from componente where tipo = 'RAM';")
+# conexao.commit()
+# cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de núcleos fisicos', '{nucleosFisicos}', id from componente where tipo = 'CPU';")
+# conexao.commit()
+# cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de núcleos lógicos', '{nucleosLogicos}', id from componente where tipo = 'CPU';")
+# conexao.commit()
+# cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de partições', '{qtdParticoes}', id from componente where tipo = 'DISCO';")
+# conexao.commit()
+
+
+# for particao in Particoes:
     
-    contador += 1
-    total  = round(psutil.disk_usage("/").total / (1024**3),2)  
-    print(f"QUantidade total da partição {contador}: {total}")
+#     contador += 1
+#     total  = round(psutil.disk_usage("/").total / (1024**3),2)  
+#     print(f"QUantidade total da partição {contador}: {total}")
 
-    usoDisco = psutil.disk_usage(particao.mountpoint)
-    print(f"Endereço da partição: {particao.device}")
-    print(f"Tipo do file system: {particao.fstype}")
-    print(f"Endereço do mountpoint: {particao.mountpoint}")
-    print(f"Opções da partição {particao.opts}")
-    print(f"Uso da partição {round(usoDisco.total / (1024**3),2)}GB")
+#     usoDisco = psutil.disk_usage(particao.mountpoint)
+#     print(f"Endereço da partição: {particao.device}")
+#     print(f"Tipo do file system: {particao.fstype}")
+#     print(f"Endereço do mountpoint: {particao.mountpoint}")
+#     print(f"Opções da partição {particao.opts}")
+#     print(f"Uso da partição {round(usoDisco.total / (1024**3),2)}GB")
 
-    cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Espaço na partição {contador} (GB)', '{round(usoDisco.total / (1024**3),2)}', id from componente where tipo = 'DISCO';")
-    conexao.commit()
-    cur.execute("insert into especificacao_componente (nome_especificacao, valor, fk_componente) "
-    "select %s, %s, id from componente where tipo = 'DISCO';",
-    (f"MountPoint da partição {contador}", particao.mountpoint)
-    )
-    conexao.commit()
+#     cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Espaço na partição {contador} (GB)', '{round(usoDisco.total / (1024**3),2)}', id from componente where tipo = 'DISCO';")
+#     conexao.commit()
+#     cur.execute("insert into especificacao_componente (nome_especificacao, valor, fk_componente) "
+#     "select %s, %s, id from componente where tipo = 'DISCO';",
+#     (f"MountPoint da partição {contador}", particao.mountpoint)
+#     )
+#     conexao.commit()
 
 
-dados = {
-    "Swap total ": swapTotal,
-    "Ram total": ramTotal,
-    "Quantidade de CPUs ": nucleosFisicos,
-    "Quantidade de núcleos lógicos": nucleosLogicos,
-    "Capacidade total do disco": discoTotal,
-    "Quantidade de partições do disco": qtdParticoes,
-    "Data e hora da captura": timestamp
-}
+# dados = {
+#     "Swap total ": swapTotal,
+#     "Ram total": ramTotal,
+#     "Quantidade de CPUs ": nucleosFisicos,
+#     "Quantidade de núcleos lógicos": nucleosLogicos,
+#     "Capacidade total do disco": discoTotal,
+#     "Quantidade de partições do disco": qtdParticoes,
+#     "Data e hora da captura": timestamp
+# }
 
-data.append(dados)
+# data.append(dados)
 
-df1 = pd.DataFrame(data = data)
+# df1 = pd.DataFrame(data = data)
 
-df1.to_csv('EspecificacoesHardware.csv',sep=';')
+# df1.to_csv('EspecificacoesHardware.csv',sep=';')
 
-print("------- Especificações capturadas -------")
+# print("------- Especificações capturadas -------")
 # Fim do script de captura de especificações
 
 
@@ -168,7 +203,7 @@ time.sleep(1)
 
 
 #Inicio do script de metricas para o banco de dados
-duracao = int(input("Digite a duração da captura: "))
+# duracao = int(input("Digite a duração da captura: "))
 contador = 0
 
 arquivo_csv = "dados.csv"
@@ -180,7 +215,7 @@ data = []
 print("\nIniciando monitoramento...")
 print("\n------- CAPTURA DE CPU, RAM E DISCO -------")
 
-while contador < duracao:
+while True:
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cpu = psutil.cpu_percent()  
     ram = psutil.virtual_memory().percent  
@@ -215,7 +250,7 @@ while contador < duracao:
  
     # Salva no CSV
     data.append(dado)
-
+    time.sleep(2)
     print(f"\n Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos}")
   
     for proc in psutil.process_iter():
@@ -228,28 +263,18 @@ while contador < duracao:
     }
         processos.append(dado)
 
-    # DADOS CPU
-    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Temperatura', '{temperatura_cpu_atual}', '°C', id from componente where tipo = 'CPU'")
-    conexao.commit()
-    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Uso', '{cpu}', '%', id from componente where tipo = 'CPU'")
+    # Modelado para bd Infomotion
+    cur.execute(f"insert into registro_servidor (fk_servidor, uso_cpu, uso_ram, uso_disco, qtd_processos, temp_cpu, temp_disco) select 1, '{cpu}', {ram}, '{disco}', {quantidade_processos}, {temperatura_cpu_atual}, {temperatura_disco_atual}")
     conexao.commit()
 
-    # DADOS RAM
-    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'RAM', '{ram}','%', id from componente where tipo = 'RAM'")
-    conexao.commit()
-
-    # DADOS DISCO
-    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Temperatura', '{temperatura_disco_atual}', '°C', id from componente where tipo = 'DISCO'")
-    conexao.commit()
-    cur.execute(f"insert into medicao (nome_medicao, medicao, unidade_medida, fk_componente) select 'Uso', '{disco}', '%', id from componente where tipo = 'DISCO'")
-    conexao.commit()
+ 
 
     contador+=1
     time.sleep(1)
 
-df1 = pd.DataFrame(data = data)
+    df1 = pd.DataFrame(data = data)
 
-df1.to_csv('data.csv',sep=';')
+    df1.to_csv('data.csv',sep=';')
 
 df = pd.DataFrame(data = processos)
 
