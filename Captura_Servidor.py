@@ -5,8 +5,7 @@ import mysql.connector as mysql
 from datetime import datetime
 import time
 import socket
-#import boto3
-
+import boto3
 
 # resgatando ip da maquina
 ipmaq = 0.0
@@ -67,11 +66,7 @@ else:
 print("\n=== Servidor Capturado ===")
 #fim do script que captura e joga o nome do servidor para o banco
 
-
-
 time.sleep(1)
-
-
 
 #Esse script pega todos os componentes que estão em atividade e joga para o banco
 # Informações do SO
@@ -110,16 +105,10 @@ valores = ('CPU', id_servidor, 1, 'CPU_RYZEN5', 1)
 cur.execute(sql, valores)
 conexao.commit()
 
-
-
 print("\n=== Componentes capturados ===")
 #fim do script que captura informações do componente
 
-
-
 time.sleep(1)
-
-
 
 #Esse script pega as especificações dos componentes, como quantidade de total de ram
 # contador = 1
@@ -179,7 +168,6 @@ time.sleep(1)
 #     )
 #     conexao.commit()
 
-
 # dados = {
 #     "Swap total ": swapTotal,
 #     "Ram total": ramTotal,
@@ -199,11 +187,7 @@ time.sleep(1)
 # print("------- Especificações capturadas -------")
 # Fim do script de captura de especificações
 
-
-
 time.sleep(1)
-
-
 
 #Inicio do script de metricas para o banco de dados
 # duracao = int(input("Digite a duração da captura: "))
@@ -255,7 +239,7 @@ while True:
     # Salva no CSV
     data.append(dado)
     time.sleep(2)
-    print(f"\n Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos}")
+    print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos}")
   
     for proc in psutil.process_iter():
         dado = {
@@ -270,8 +254,6 @@ while True:
     # Modelado para bd Infomotion
     cur.execute(f"insert into registro_servidor (fk_servidor, uso_cpu, uso_ram, uso_disco, qtd_processos, temp_cpu, temp_disco) select 1, '{cpu}', {ram}, '{disco}', {quantidade_processos}, {temperatura_cpu_atual}, {temperatura_disco_atual}")
     conexao.commit()
-
- 
 
     contador+=1
     time.sleep(1)
@@ -292,15 +274,14 @@ print("Finalizando monitoramento...")
 # Fim do script de capturar metricas
 # Enviando o CSV para o bucket na ac2
 
-# s3 = boto3.client('s3')
+s3 = boto3.client('s3')
 # # Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
 
-# nome_bucket = 'infomotion.raw'
+nome_bucket = 'infomotion.raw'
 
-# s3.upload_file('data.csv', nome_bucket, 'CSVs-dados-registrados/data.csv')
-# # s3.upload_file('processos.csv', nome_bucket, 'CSVs-processos-registrados/processos.csv')
+s3.upload_file('data.csv', nome_bucket, 'CSVs-dados-registrados/data.csv')
+s3.upload_file('processos.csv', nome_bucket, 'CSVs-processos-registrados/processos.csv')
 
-# print("CSV enviado com sucesso!!")
-
+print("CSV enviado com sucesso!!")
 
 # CSV enviado para a pasta CSVs-registrados dentro do bucket RAW
