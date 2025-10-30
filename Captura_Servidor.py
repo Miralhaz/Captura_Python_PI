@@ -5,7 +5,7 @@ import mysql.connector as mysql
 from datetime import datetime
 import time
 import socket
-#import boto3
+import boto3
 
 # resgatando ip da maquina
 ipmaq = 0.0
@@ -27,7 +27,7 @@ else:
 
 print("Credenciais do banco de dados MySQL")
 opcaouser = "aluno"
-opcaopassword = "20212412Wi@"
+opcaopassword = "suasenha@"
 opcaodatabase = "infomotion"
 
 try:
@@ -215,8 +215,8 @@ cur.execute("""
     )
 """)
 conexao.commit()
-
-while True:
+duracao = 0
+while (duracao < 4):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cpu = psutil.cpu_percent()  
     ram = psutil.virtual_memory().percent  
@@ -269,7 +269,7 @@ while True:
     cur.execute(f"insert into registro_servidor (fk_servidor, uso_cpu, uso_ram, uso_disco, qtd_processos, temp_cpu, temp_disco) select 1, '{cpu}', {ram}, '{disco}', {quantidade_processos}, {temperatura_cpu_atual}, {temperatura_disco_atual}")
     conexao.commit()
 
-    contador+=1
+    duracao+=1
     time.sleep(1)
 
     df1 = pd.DataFrame(data = data)
@@ -291,10 +291,10 @@ print("Finalizando monitoramento...")
 s3 = boto3.client('s3')
 # # Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
 
-nome_bucket = 'infomotion.raw'
+nome_bucket = 's3-raw-infomotion'
 
-s3.upload_file('data.csv', nome_bucket, 'CSVs-dados-registrados/data.csv')
-s3.upload_file('processos.csv', nome_bucket, 'CSVs-processos-registrados/processos.csv')
+s3.upload_file('data.csv', nome_bucket, 'data.csv')
+s3.upload_file('processos.csv', nome_bucket, 'processos.csv')
 
 print("CSV enviado com sucesso!!")
 
