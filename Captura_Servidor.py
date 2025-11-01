@@ -27,7 +27,7 @@ else:
 
 print("Credenciais do banco de dados MySQL")
 opcaouser = "aluno"
-opcaopassword = "suasenha@"
+opcaopassword = "20212412Wi@"
 opcaodatabase = "infomotion"
 
 try:
@@ -100,7 +100,13 @@ INSERT INTO infomotion.componentes
 VALUES (%s, %s, %s, %s, %s)
 """
 
-valores = ('CPU', id_servidor, 1, 'CPU_RYZEN5', 1)
+valores = ('CPU', id_servidor, 1, 'CPU_ryzen5', 1)
+cur.execute(sql, valores)
+conexao.commit()
+valores = ('RAM', id_servidor, 1, 'RAM_slot1', 1)
+cur.execute(sql, valores)
+conexao.commit()
+valores = ('DISCO', id_servidor, 1, 'DISCO_SATA1', 1)
 
 cur.execute(sql, valores)
 conexao.commit()
@@ -289,7 +295,7 @@ print("Finalizando monitoramento...")
 # Enviando o CSV para o bucket na ac2
 
 s3 = boto3.client('s3')
-# # Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
+# # # Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
 
 nome_bucket = 's3-raw-infomotion'
 
