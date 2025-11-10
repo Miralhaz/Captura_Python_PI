@@ -6,11 +6,12 @@ from datetime import datetime
 import time
 import socket
 import boto3
+from geopy.geocoders import Nominatim
 
 # resgatando ip da maquina
 ipmaq = 0.0
 def obter_ip_maquina():
-    # Função para pegar IP Ipv4 da máquina
+    # Função arap pegar IP Ipv4 da máquina
     for interface, enderecos in psutil.net_if_addrs().items():
         for endereco in enderecos:
             if endereco.family == socket.AF_INET and not endereco.address.startswith('127.'):
@@ -24,10 +25,9 @@ if ip:
 else:
     print("Não foi possível encontrar um endereço IP válido. Verifique se há uma conexão de rede ativa.")
 
-
 print("Credenciais do banco de dados MySQL")
-opcaouser = "aluno"
-opcaopassword = "20212412Wi@"
+opcaouser = "root"
+opcaopassword = "Sonofsparda1@#"
 opcaodatabase = "infomotion"
 
 try:
@@ -51,6 +51,7 @@ nomeMaquina = platform.node()
 print(f"Nome da Máquina: {nomeMaquina}")
 # Cadastra servidor no banco
 cur.execute("SELECT id FROM servidor WHERE apelido = %s", (nomeMaquina,))
+
 resultado_select = cur.fetchone()
 
 if resultado_select:
@@ -62,6 +63,12 @@ else:
     cur.execute("SELECT LAST_INSERT_ID()")
     id_servidor = cur.fetchone()[0]
     print(f"Servidor cadastrado com ID {id_servidor}")
+
+regiao = cur.execute("select fk_regiao from servidor where id = %s",(id_servidor))
+cep = cur.execute("select cep from regiao where id = %s",(regiao))
+geo = Nominatim(user_agent="agente_que_busca_coordenada")
+regiao_inteira = f"CEP {cep}"
+coordenada = geo.geocode(regiao_inteira)
 
 print("\n=== Servidor Capturado ===")
 #fim do script que captura e joga o nome do servidor para o banco
@@ -79,6 +86,7 @@ nucleosFisicos = psutil.cpu_count(logical=False)
 nucleosLogicos = psutil.cpu_count(logical=True)
 nomeMaquina = platform.node()
 
+ 
 print(processador)
 
 print("\n")
@@ -231,10 +239,13 @@ while (duracao < 4):
     temperatura_disco = psutil.sensors_temperatures(fahrenheit = False)
     memoria_swap = round(psutil.swap_memory().used / (1024 * 1024), 2)
     processos_maquina = psutil.process_iter()
-
     processos_list = list(processos_maquina)
     quantidade_processos = len(processos_list)
-
+    net0 = psutil.net_io_counters(pernic=True)
+    time.sleep(1)
+    net1 = psutil.net_io_counters(pernic=True)
+    bytes_recebidos = net1.bytes_recv - net0.bytes_recv
+    bytes_enviados = net1.bytes_sent - net0.bytes_sent
     local_cpu = temperatura_cpu['coretemp']
     cpu_sensor = local_cpu[0]
     temperatura_cpu_atual = cpu_sensor.current
@@ -254,13 +265,14 @@ while (duracao < 4):
         ,'temperatura_disco': temperatura_disco_atual
         ,'memoria_swap': memoria_swap
         ,'quantidade_processos': quantidade_processos
+        ,'donwload_bytes':bytes_recebidos
+        ,'upload_bytes':bytes_enviados
     }
  
-    # Salva no CSV
+    # Salva no CSVghc vc 
     data.append(dado)
     time.sleep(2)
-    print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos}")
-  
+    print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos} | Velocidade de Download: {bytes_recebidos} | Velocidade de Upload: {bytes_enviados}") 
     for proc in psutil.process_iter():
         dado = {
         'timestamp':timestamp
