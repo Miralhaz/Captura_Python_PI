@@ -7,6 +7,7 @@ import time
 import socket
 import boto3
 from geopy.geocoders import Nominatim
+import requests
 
 # resgatando ip da maquina
 ipmaq = 0.0
@@ -64,13 +65,54 @@ else:
     id_servidor = cur.fetchone()[0]
     print(f"Servidor cadastrado com ID {id_servidor}")
 
-regiao = cur.execute("select fk_regiao from servidor where id = %s",(id_servidor))
-cep = cur.execute("select cep from regiao where id = %s",(regiao))
+
+# buscando dados de região
+cur.execute("select fk_regiao from servidor where id = %s",(id_servidor,))
+resultado_select = cur.fetchone() 
+regiao = resultado_select[0]
+
+cur.execute("select cidade,pais,codigo_postal from regiao where id = %s",(regiao,))
+resultado_select = cur.fetchone() 
+
+cidade = resultado_select[0]
+pais = resultado_select[1]
+cep = resultado_select[2]
+
+
+
+regiao_inteira = f"{cep},{cidade},{pais}"
 geo = Nominatim(user_agent="agente_que_busca_coordenada")
-regiao_inteira = f"CEP {cep}"
 coordenada = geo.geocode(regiao_inteira)
+print(coordenada)
+print(coordenada.latitude)
+print(coordenada.longitude)
+# open-meteo api para buscar dados de climao
+def obter_clima(latitude, longitude):
+    url_api_meteo = "https://api.open-meteo.com/v1/forecast?"
+
+    params = {
+	    "latitude":latitude ,
+	    "longitude":longitude,
+    	"hourly": ["precipitation", "precipitation_probability", "weather_code", "temperature_2m", "relative_humidity_2m"], 
+        "past_days": 7,
+        "forecast_days": 16,
+              }
+    try:
+        resposta = requests.get(url_api_meteo, params=params)
+        if resposta.status_code == 200:
+            dados_clima = resposta.json()
+            return dados_clima
+        else:
+            print("Erro ao receber dados")
+            return None
+    except requests.exceptions.RequestException  as e:
+      print("Erro em obter clima" + e )
+      return None
+
 
 print("\n=== Servidor Capturado ===")
+
+
 #fim do script que captura e joga o nome do servidor para o banco
 
 time.sleep(1)
@@ -100,24 +142,29 @@ discoUsado = psutil.disk_usage("/").percent
 
 print(f"Nome da Máquina: {nomeMaquina} | CPU: {uso}% | Ram total: {ramTotal}GB | Ram em Uso: {ramUsada}% | Disco total: {discoTotal}GB | Disco em uso: {discoUsado}%")
 
-
 # Modelado para bd Infomotion
-sql = """
-INSERT INTO infomotion.componentes 
-(tipo, fk_servidor, numero_serie, apelido, ativo)
-VALUES (%s, %s, %s, %s, %s)
-"""
 
-valores = ('CPU', id_servidor, 1, 'CPU_ryzen5', 1)
-cur.execute(sql, valores)
-conexao.commit()
-valores = ('RAM', id_servidor, 1, 'RAM_slot1', 1)
-cur.execute(sql, valores)
-conexao.commit()
-valores = ('DISCO', id_servidor, 1, 'DISCO_SATA1', 1)
+cur.execute("select * from componentes where fk_servidor = %s",(id_servidor,))
+resultado_select = cur.fetchall()
 
-cur.execute(sql, valores)
-conexao.commit()
+
+if len(resultado_select) <= 0:
+    sql = """
+    INSERT INTO infomotion.componentes 
+    (tipo, fk_servidor, numero_serie, apelido, ativo)
+    VALUES (%s, %s, %s, %s, %s)
+    """
+    
+    valores = ('CPU', id_servidor, 1, 'CPU_ryzen5', 1)
+    cur.execute(sql, valores)
+    conexao.commit()
+    valores = ('RAM', id_servidor, 1, 'RAM_slot1', 1)
+    cur.execute(sql, valores)
+    conexao.commit()
+    valores = ('DISCO', id_servidor, 1, 'DISCO_SATA1', 1)
+    
+    cur.execute(sql, valores)
+    conexao.commit()
 
 print("\n=== Componentes capturados ===")
 #fim do script que captura informações do componente
@@ -131,7 +178,9 @@ qtdParticoes = 0
 data = []
 
 print("\n------- Iniciando Captura de Especificações de Hardware -------")
-
+print(id_servidor)
+cur.execute("select nome_especificacao from especificacao_componente inner join componentes on componentes.id = especificacao_componente.fk_componente where fk_servidor = %s",(id_servidor,))
+resultado_select = cur.fetchall() 
 
 swapTotal = round(psutil.swap_memory().total / (1024**3),2)
 ramTotal = round(psutil.virtual_memory().total / (1024**3),2)
@@ -141,8 +190,9 @@ nucleosFisicos = psutil.cpu_count(logical=False)
 nucleosLogicos = psutil.cpu_count(logical=True)
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+
 for item in Particoes:
-    qtdParticoes += 1
+        qtdParticoes += 1
 
 print(f"Swap total: {swapTotal}")
 print(f"Ram total: {ramTotal}")
@@ -150,18 +200,19 @@ print(f"Quantidade de CPUs: {nucleosFisicos}")
 print(f"Quantidade de núcleos: {nucleosLogicos}")
 print(f"Quantidade de partições: {qtdParticoes}")
 
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Swap total (GB)', '{swapTotal}', id from componentes where tipo = 'DISCO';")
-conexao.commit()
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Ram total (GB)', '{ramTotal}', id from componentes where tipo = 'RAM';")
-conexao.commit()
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Capacidade total disco (GB)', '{discoTotal}', id from componentes where tipo = 'DISCO';")
-conexao.commit()
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de núcleos fisicos', '{nucleosFisicos}', id from componentes where tipo = 'CPU';")
-conexao.commit()
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de núcleos lógicos', '{nucleosLogicos}', id from componentes where tipo = 'CPU';")
-conexao.commit()
-cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de partições', '{qtdParticoes}', id from componentes where tipo = 'DISCO';")
-conexao.commit()
+if len(resultado_select) <= 0:
+    cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Swap total (GB)', '{swapTotal}', id from componentes where tipo = 'DISCO';")
+    conexao.commit()
+    cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Ram total (GB)', '{ramTotal}', id from componentes where tipo = 'RAM';")
+    conexao.commit()
+    cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Capacidade total disco (GB)', '{discoTotal}', id from componentes where tipo = 'DISCO';")
+    conexao.commit()
+    cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de núcleos fisicos', '{nucleosFisicos}', id from componentes where tipo = 'CPU';")
+    conexao.commit()
+    cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de núcleos lógicos', '{nucleosLogicos}', id from componentes where tipo = 'CPU';")
+    conexao.commit()
+    cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Quantidade de partições', '{qtdParticoes}', id from componentes where tipo = 'DISCO';")
+    conexao.commit()
 
 
 for particao in Particoes:
@@ -177,13 +228,14 @@ for particao in Particoes:
     print(f"Opções da partição {particao.opts}")
     print(f"Uso da partição {round(usoDisco.total / (1024**3),2)}GB")
 
-    cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Espaço na partição {contador} (GB)', '{round(usoDisco.total / (1024**3),2)}', id from componentes where tipo = 'DISCO';")
-    conexao.commit()
-    cur.execute("insert into especificacao_componente (nome_especificacao, valor, fk_componente) "
-    "select %s, %s, id from componentes where tipo = 'DISCO';",
-    (f"MountPoint da partição {contador}", particao.mountpoint)
-    )
-    conexao.commit()
+    if len(resultado_select) <= 0:
+        cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Espaço na partição {contador} (GB)', '{round(usoDisco.total / (1024**3),2)}', id from componentes where tipo = 'DISCO';")
+        conexao.commit()
+        cur.execute("insert into especificacao_componente (nome_especificacao, valor, fk_componente) "
+        "select %s, %s, id from componentes where tipo = 'DISCO';",
+        (f"MountPoint da partição {contador}", particao.mountpoint)
+        )
+        conexao.commit()
 
 dados = {
     "Swap total ": swapTotal,
@@ -211,11 +263,10 @@ time.sleep(1)
 #Inicio do script de metricas para o banco de dados
 contador = 0
 
-arquivo_csv = "dados.csv"
-processos = "processos.csv"
 
 processos = []
 data = []
+
 
 print("\nIniciando monitoramento...")
 print("\n------- CAPTURA DE CPU, RAM E DISCO -------")
@@ -235,25 +286,37 @@ while (duracao < 4):
     cpu = psutil.cpu_percent()  
     ram = psutil.virtual_memory().percent  
     disco = psutil.disk_usage("/").percent  
-    temperatura_cpu = psutil.sensors_temperatures(fahrenheit = False)
-    temperatura_disco = psutil.sensors_temperatures(fahrenheit = False)
+    #temperatura_cpu = psutil.sensors_temperatures(fahrenheit = False)
+    #temperatura_disco = psutil.sensors_temperatures(fahrenheit = False)
     memoria_swap = round(psutil.swap_memory().used / (1024 * 1024), 2)
     processos_maquina = psutil.process_iter()
     processos_list = list(processos_maquina)
     quantidade_processos = len(processos_list)
-    net0 = psutil.net_io_counters(pernic=True)
-    time.sleep(1)
-    net1 = psutil.net_io_counters(pernic=True)
-    bytes_recebidos = net1.bytes_recv - net0.bytes_recv
-    bytes_enviados = net1.bytes_sent - net0.bytes_sent
-    local_cpu = temperatura_cpu['coretemp']
-    cpu_sensor = local_cpu[0]
-    temperatura_cpu_atual = cpu_sensor.current
+    net = psutil.net_io_counters(pernic=True)
+    bytes_recebidos =  net['Wi-Fi'].bytes_recv 
+    bytes_enviados = net['Wi-Fi'].bytes_sent
+    pacotes_recebidos =  net['Wi-Fi'].packets_recv
+    pacotes_enviados =  net['Wi-Fi'].packets_sent
+    erro_recebimento = net["Wi-Fi"].errin
+    erro_envio = net["Wi-Fi"].errout
+    queda_envio_pacotes = net["Wi-Fi"].dropin
+    queda_recebimento_pacotes = net["Wi-Fi"].dropout
+    leitura_escrita_disco = psutil.disk_io_counters(perdisk=False, nowrap=True)
+    numero_leituras = leitura_escrita_disco.read_count
+    numero_escritas = leitura_escrita_disco.write_count
+    bytes_lidos = leitura_escrita_disco.read_bytes
+    bytes_escritos = leitura_escrita_disco.write_bytes
+    tempo_leitura = leitura_escrita_disco.read_time
+    tempo_escrita = leitura_escrita_disco.write_time
+    #local_cpu = temperatura_cpu['coretemp']
+    #cpu_sensor = local_cpu[0]
+    #temperatura_cpu_atual = cpu_sensor.current
+    #local_disco = temperatura_disco['nvme']
+    #disco_sensor = local_disco[0]
+    #temperatura_disco_atual = disco_sensor.current
+  
 
-    local_disco = temperatura_disco['nvme']
-    disco_sensor = local_disco[0]
-    temperatura_disco_atual = disco_sensor.current
-
+   
     dado = {
         'fk_servidor': id_servidor
         ,'nomeMaquina': nomeMaquina
@@ -261,18 +324,18 @@ while (duracao < 4):
         ,'cpu': cpu
         ,'ram': ram
         ,'disco': disco
-        ,'temperatura_cpu': temperatura_cpu_atual
-        ,'temperatura_disco': temperatura_disco_atual
+       #,'temperatura_cpu': temperatura_cpu_atual
+        #,'temperatura_disco': temperatura_disco_atual
         ,'memoria_swap': memoria_swap
         ,'quantidade_processos': quantidade_processos
-        ,'donwload_bytes':bytes_recebidos
-        ,'upload_bytes':bytes_enviados
+       #,'donwload_bytes':bytes_recebidos
+        #,'upload_bytes':bytes_enviados
     }
  
     # Salva no CSVghc vc 
     data.append(dado)
     time.sleep(2)
-    print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos} | Velocidade de Download: {bytes_recebidos} | Velocidade de Upload: {bytes_enviados}") 
+    #print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos} | Velocidade de Download: {bytes_recebidos} | Velocidade de Upload: {bytes_enviados}") 
     for proc in psutil.process_iter():
         dado = {
         'timestamp':timestamp
@@ -281,11 +344,12 @@ while (duracao < 4):
         ,'cpu':proc.cpu_percent()
         ,'ram': round(proc.memory_percent(),4)
     }
+        print(dado)
         processos.append(dado)
 
     # Modelado para bd Infomotion
-    cur.execute(f"insert into registro_servidor (fk_servidor, uso_cpu, uso_ram, uso_disco, qtd_processos, temp_cpu, temp_disco) select 1, '{cpu}', {ram}, '{disco}', {quantidade_processos}, {temperatura_cpu_atual}, {temperatura_disco_atual}")
-    conexao.commit()
+    #cur.execute(f"insert into registro_servidor (fk_servidor, uso_cpu, uso_ram, uso_disco, qtd_processos, temp_cpu, temp_disco) select 1, '{cpu}', {ram}, '{disco}', {quantidade_processos}, {temperatura_cpu_atual}, {temperatura_disco_atual}")
+    #conexao.commit()
 
     duracao+=1
     time.sleep(1)
@@ -302,6 +366,18 @@ print("\n------- CAPTURA DE PROCESSOS -------\n")
 print(df) 
 
 
+lat = coordenada.latitude
+lon = coordenada.longitude
+clima = obter_clima(lat,lon)
+hourly = clima['hourly']
+hourly["latitude"] = lat
+hourly["longitude"] = lon
+hourly["regiao"] = regiao
+    
+df2 = pd.DataFrame(data = hourly)
+df2.to_csv('clima.csv',sep=';')
+print(df2)
+
 print("Finalizando monitoramento...")
 # Fim do script de capturar metricas
 # Enviando o CSV para o bucket na ac2
@@ -311,8 +387,9 @@ s3 = boto3.client('s3')
 
 nome_bucket = 's3-raw-infomotion'
 
-s3.upload_file('data.csv', nome_bucket, 'data.csv')
-s3.upload_file('processos.csv', nome_bucket, 'processos.csv')
+#s3.upload_file('data.csv', nome_bucket, 'data.csv')
+#s3.upload_file('processos.csv', nome_bucket, 'processos.csv')
+#s3.upload_file('clima.csv', nome_bucket, 'clima.csv')
 
 print("CSV enviado com sucesso!!")
 
