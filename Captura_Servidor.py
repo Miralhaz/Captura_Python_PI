@@ -27,8 +27,8 @@ else:
     print("Não foi possível encontrar um endereço IP válido. Verifique se há uma conexão de rede ativa.")
 
 print("Credenciais do banco de dados MySQL")
-opcaouser = "root"
-opcaopassword = "Sonofsparda1@#"
+opcaouser = ""
+opcaopassword = ""
 opcaodatabase = "infomotion"
 
 try:
@@ -266,6 +266,7 @@ contador = 0
 
 processos = []
 data = []
+data_conex = []
 
 
 print("\nIniciando monitoramento...")
@@ -287,7 +288,13 @@ while (duracao < 4):
     ram = psutil.virtual_memory().percent  
     disco = psutil.disk_usage("/").percent  
     #temperatura_cpu = psutil.sensors_temperatures(fahrenheit = False)
-    #temperatura_disco = psutil.sensors_temperatures(fahrenheit = False)
+    #temperatura_disco = psutil.sensors_temperatures(fahrenheit = False)]
+    #local_cpu = temperatura_cpu['coretemp']
+    #cpu_sensor = local_cpu[0]
+    #temperatura_cpu_atual = cpu_sensor.current
+    #local_disco = temperatura_disco['nvme']
+    #disco_sensor = local_disco[0]
+    #temperatura_disco_atual = disco_sensor.current
     memoria_swap = round(psutil.swap_memory().used / (1024 * 1024), 2)
     processos_maquina = psutil.process_iter()
     processos_list = list(processos_maquina)
@@ -299,8 +306,8 @@ while (duracao < 4):
     pacotes_enviados =  net['Wi-Fi'].packets_sent
     erro_recebimento = net["Wi-Fi"].errin
     erro_envio = net["Wi-Fi"].errout
-    queda_envio_pacotes = net["Wi-Fi"].dropin
-    queda_recebimento_pacotes = net["Wi-Fi"].dropout
+    dropin = net["Wi-Fi"].dropin
+    dropout = net["Wi-Fi"].dropout
     leitura_escrita_disco = psutil.disk_io_counters(perdisk=False, nowrap=True)
     numero_leituras = leitura_escrita_disco.read_count
     numero_escritas = leitura_escrita_disco.write_count
@@ -308,13 +315,7 @@ while (duracao < 4):
     bytes_escritos = leitura_escrita_disco.write_bytes
     tempo_leitura = leitura_escrita_disco.read_time
     tempo_escrita = leitura_escrita_disco.write_time
-    #local_cpu = temperatura_cpu['coretemp']
-    #cpu_sensor = local_cpu[0]
-    #temperatura_cpu_atual = cpu_sensor.current
-    #local_disco = temperatura_disco['nvme']
-    #disco_sensor = local_disco[0]
-    #temperatura_disco_atual = disco_sensor.current
-  
+    
 
    
     dado = {
@@ -328,8 +329,21 @@ while (duracao < 4):
         #,'temperatura_disco': temperatura_disco_atual
         ,'memoria_swap': memoria_swap
         ,'quantidade_processos': quantidade_processos
-       #,'donwload_bytes':bytes_recebidos
-        #,'upload_bytes':bytes_enviados
+       ,'donwload_bytes':bytes_recebidos
+        ,'upload_bytes':bytes_enviados
+        ,'pacotes_recebidos' : pacotes_recebidos
+        ,'pacotes_enviados':pacotes_enviados
+        ,'errin':erro_recebimento
+        ,'errout':erro_envio    
+        ,'dropin':dropin
+        ,'dropout':dropout
+        ,'numero_leituras':numero_leituras
+        ,'numero_escritas':numero_escritas
+        ,'bytes_lidos':bytes_lidos
+        ,'bytes_escritos':bytes_escritos
+        ,'tempo_leitura':tempo_leitura
+        ,'tempo_escrita':tempo_escrita
+
     }
  
     # Salva no CSVghc vc 
@@ -344,7 +358,6 @@ while (duracao < 4):
         ,'cpu':proc.cpu_percent()
         ,'ram': round(proc.memory_percent(),4)
     }
-        print(dado)
         processos.append(dado)
 
     # Modelado para bd Infomotion
@@ -354,16 +367,37 @@ while (duracao < 4):
     duracao+=1
     time.sleep(1)
 
-    df1 = pd.DataFrame(data = data)
+    df= pd.DataFrame(data = data)
 
-    df1.to_csv('data.csv',sep=';')
+    df.to_csv('data.csv',sep=';')
+print(df) 
 
-df = pd.DataFrame(data = processos)
 
-df.to_csv('processos.csv',sep=';')
+df1 = pd.DataFrame(data = processos)
+
+df1.to_csv('processos.csv',sep=';')
+print(df1) 
+
+
+
+
+for c in psutil.net_connections(kind='inet'):
+    conex = {
+        'pid':c.pid
+        ,'fd': c.fd
+        ,'familia':c.family
+        ,'tipo':c.type
+        ,'laddr':c.laddr
+        ,'status':c.status
+    }
+    data_conex.append(conex)
+df2 = pd.DataFrame(data = data_conex)
+
+df2.to_csv('conexoes.csv',sep=';')
+
+print(df2) 
 
 print("\n------- CAPTURA DE PROCESSOS -------\n")
-print(df) 
 
 
 lat = coordenada.latitude
@@ -374,9 +408,9 @@ hourly["latitude"] = lat
 hourly["longitude"] = lon
 hourly["regiao"] = regiao
     
-df2 = pd.DataFrame(data = hourly)
-df2.to_csv('clima.csv',sep=';')
-print(df2)
+df3 = pd.DataFrame(data = hourly)
+df3.to_csv('clima.csv',sep=';')
+print(df3)
 
 print("Finalizando monitoramento...")
 # Fim do script de capturar metricas
@@ -385,12 +419,13 @@ print("Finalizando monitoramento...")
 s3 = boto3.client('s3')
 # # # Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
 
-nome_bucket = 's3-raw-infomotion'
+nome_bucket = ''
 
-#s3.upload_file('data.csv', nome_bucket, 'data.csv')
-#s3.upload_file('processos.csv', nome_bucket, 'processos.csv')
-#s3.upload_file('clima.csv', nome_bucket, 'clima.csv')
-
+s3.upload_file('data.csv', nome_bucket, 'data.csv')
+s3.upload_file('processos.csv', nome_bucket, 'processos.csv')
+s3.upload_file('clima.csv', nome_bucket, 'clima.csv')
+s3.upload_file('conexoes.csv', nome_bucket, 'conexoes.csv')
+s3.upload_file('EspecificacoesHardware.csv', nome_bucket, 'EspecificacoesHardware.csv')
 print("CSV enviado com sucesso!!")
 
 # CSV enviado para a pasta CSVs-registrados dentro do bucket RAW
