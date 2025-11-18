@@ -303,8 +303,6 @@ while (duracao < 4):
     bytes_enviados = net['Wi-Fi'].bytes_sent
     pacotes_recebidos =  net['Wi-Fi'].packets_recv
     pacotes_enviados =  net['Wi-Fi'].packets_sent
-    erro_recebimento = net["Wi-Fi"].errin
-    erro_envio = net["Wi-Fi"].errout
     dropin = net["Wi-Fi"].dropin
     dropout = net["Wi-Fi"].dropout
     leitura_escrita_disco = psutil.disk_io_counters(perdisk=False, nowrap=True)
@@ -331,9 +329,7 @@ while (duracao < 4):
         ,'donwload_bytes':bytes_recebidos
         ,'upload_bytes':bytes_enviados
         ,'pacotes_recebidos' : pacotes_recebidos
-        ,'pacotes_enviados':pacotes_enviados
-        ,'errin':erro_recebimento
-        ,'errout':erro_envio    
+        ,'pacotes_enviados':pacotes_enviados  
         ,'dropin':dropin
         ,'dropout':dropout
         ,'numero_leituras':numero_leituras
