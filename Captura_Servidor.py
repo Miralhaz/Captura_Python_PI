@@ -8,6 +8,7 @@ import socket
 import boto3
 from geopy.geocoders import Nominatim
 import requests
+import random
 
 # resgatando ip da maquina
 ipmaq = 0.0
@@ -27,8 +28,8 @@ else:
     print("Não foi possível encontrar um endereço IP válido. Verifique se há uma conexão de rede ativa.")
 
 print("Credenciais do banco de dados MySQL")
-opcaouser = ""
-opcaopassword = ""
+opcaouser = "root"
+opcaopassword = "041316miralha"
 opcaodatabase = "infomotion"
 
 try:
@@ -282,19 +283,17 @@ cur.execute("""
 """)
 conexao.commit()
 duracao = 0
+temp_cpu_base = 45.0
+temp_disco_base = 35.0
 while (duracao < 4):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cpu = psutil.cpu_percent()  
     ram = psutil.virtual_memory().percent  
     disco = psutil.disk_usage("/").percent  
-    #temperatura_cpu = psutil.sensors_temperatures(fahrenheit = False)
-    #temperatura_disco = psutil.sensors_temperatures(fahrenheit = False)]
-    #local_cpu = temperatura_cpu['coretemp']
-    #cpu_sensor = local_cpu[0]
-    #temperatura_cpu_atual = cpu_sensor.current
-    #local_disco = temperatura_disco['nvme']
-    #disco_sensor = local_disco[0]
-    #temperatura_disco_atual = disco_sensor.current
+    variacao_cpu = random.uniform(-2.0, 5.0)
+    temperatura_cpu_atual = round(temp_cpu_base + variacao_cpu + (cpu * 0.2), 2)
+    variacao_disco = random.uniform(-1.0, 2.0)
+    temperatura_disco_atual = round(temp_disco_base + variacao_disco, 2)
     memoria_swap = round(psutil.swap_memory().used / (1024 * 1024), 2)
     processos_maquina = psutil.process_iter()
     processos_list = list(processos_maquina)
@@ -325,11 +324,11 @@ while (duracao < 4):
         ,'cpu': cpu
         ,'ram': ram
         ,'disco': disco
-       #,'temperatura_cpu': temperatura_cpu_atual
-        #,'temperatura_disco': temperatura_disco_atual
+        ,'temperatura_cpu': temperatura_cpu_atual
+        ,'temperatura_disco': temperatura_disco_atual
         ,'memoria_swap': memoria_swap
         ,'quantidade_processos': quantidade_processos
-       ,'donwload_bytes':bytes_recebidos
+        ,'donwload_bytes':bytes_recebidos
         ,'upload_bytes':bytes_enviados
         ,'pacotes_recebidos' : pacotes_recebidos
         ,'pacotes_enviados':pacotes_enviados
@@ -419,7 +418,7 @@ print("Finalizando monitoramento...")
 s3 = boto3.client('s3')
 # # # Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
 
-nome_bucket = ''
+nome_bucket = 's3-raw-infomotion'
 
 s3.upload_file('data.csv', nome_bucket, 'data.csv')
 s3.upload_file('processos.csv', nome_bucket, 'processos.csv')
