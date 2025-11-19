@@ -51,21 +51,46 @@ print("\n")
 print("\n=== Iniciando Captura de Servidor ===")
 nomeMaquina = platform.node()
 print(f"Nome da Máquina: {nomeMaquina}")
+
+id_empresa = 1
+id_regiao = 4
+id_gestor = 1
+
 # Cadastra servidor no banco
-cur.execute("SELECT id FROM servidor WHERE apelido = %s", (nomeMaquina,))
+cur.execute("SELECT id, fk_empresa, fk_regiao FROM servidor WHERE apelido = %s", (nomeMaquina,))
 
 resultado_select = cur.fetchone()
 
 if resultado_select:
     id_servidor = resultado_select[0]
+    fk_empresa = resultado_select[1]
+    fk_regiao = resultado_select[2]
     print(f"Servidor já cadastrado com ID {id_servidor}")
+
+    if fk_regiao is None or fk_regiao != id_regiao: 
+        cur.execute("UPDATE servidor SET fk_regiao = %s WHERE id = %s", (id_regiao, id_servidor))
+        conexao.commit()
+
+    if fk_empresa is None or fk_empresa != id_empresa: 
+        cur.execute("UPDATE servidor SET fk_empresa = %s WHERE id = %s", (id_empresa, id_servidor))
+        conexao.commit()
+
 else:
-    cur.execute("INSERT INTO servidor (apelido,ip) VALUES (%s, %s)", (nomeMaquina, ipmaq))
+    cur.execute("INSERT INTO servidor (apelido, ip, fk_empresa, ativo) VALUES (%s, %s, %s, %s)", (nomeMaquina, ipmaq, id_empresa, 1))
     conexao.commit()
     cur.execute("SELECT LAST_INSERT_ID()")
     id_servidor = cur.fetchone()[0]
     print(f"Servidor cadastrado com ID {id_servidor}")
 
+
+sql_associacao = """
+    INSERT INTO usuario_has_servidor (fk_usuario, fk_servidor) 
+    VALUES (%s, %s)
+    ON DUPLICATE KEY UPDATE fk_usuario = fk_usuario;
+"""
+
+cur.execute(sql_associacao, (id_gestor, id_servidor))
+conexao.commit();
 
 # buscando dados de região
 cur.execute("select fk_regiao from servidor where id = %s",(id_servidor,))
@@ -148,23 +173,51 @@ print(f"Nome da Máquina: {nomeMaquina} | CPU: {uso}% | Ram total: {ramTotal}GB 
 cur.execute("select * from componentes where fk_servidor = %s",(id_servidor,))
 resultado_select = cur.fetchall()
 
+param_cpu = '79'
+param_ram = '61'
+param_disco = '52'
+duracao = '0'
+unidade = '%'
 
 if len(resultado_select) <= 0:
+
     sql = """
     INSERT INTO infomotion.componentes 
     (tipo, fk_servidor, numero_serie, apelido, ativo)
+    VALUES (%s, %s, %s, %s, %s)
+    """
+
+    sql_parametro = """
+    INSERT INTO infomotion.parametro_alerta 
+    (fk_servidor, fk_componente, max, duracao_min, unidade_medida)
     VALUES (%s, %s, %s, %s, %s)
     """
     
     valores = ('CPU', id_servidor, 1, 'CPU_ryzen5', 1)
     cur.execute(sql, valores)
     conexao.commit()
+    cur.execute("SELECT LAST_INSERT_ID()")
+    id_componente_cpu = cur.fetchone()[0]
+    valores_parametro_cpu = (id_servidor, id_componente_cpu, param_cpu, duracao, unidade)
+    cur.execute(sql_parametro, valores_parametro_cpu)
+    conexao.commit()
+
     valores = ('RAM', id_servidor, 1, 'RAM_slot1', 1)
     cur.execute(sql, valores)
     conexao.commit()
+    cur.execute("SELECT LAST_INSERT_ID()")
+    id_componente_ram = cur.fetchone()[0]
+    valores_parametro_ram = (id_servidor, id_componente_ram, param_ram, duracao, unidade)
+    cur.execute(sql_parametro, valores_parametro_ram)
+    conexao.commit()
+
     valores = ('DISCO', id_servidor, 1, 'DISCO_SATA1', 1)
-    
     cur.execute(sql, valores)
+    conexao.commit()
+    cur.execute("SELECT LAST_INSERT_ID()")
+    id_componente_disco = cur.fetchone()[0]
+    valores_parametro_disco = (id_servidor, id_componente_disco, param_disco, duracao, unidade)
+    cur.execute(sql_parametro, valores_parametro_disco)
     conexao.commit()
 
 print("\n=== Componentes capturados ===")
@@ -285,7 +338,7 @@ conexao.commit()
 duracao = 0
 temp_cpu_base = 45.0
 temp_disco_base = 35.0
-while (duracao < 4):
+while (duracao < 20):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cpu = psutil.cpu_percent()  
     ram = psutil.virtual_memory().percent  
@@ -341,10 +394,10 @@ while (duracao < 4):
 
     }
  
-    # Salva no CSVghc vc 
+    # Salva no CSV
     data.append(dado)
     time.sleep(2)
-    #print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos} | Velocidade de Download: {bytes_recebidos} | Velocidade de Upload: {bytes_enviados}") 
+    print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos} | Velocidade de Download: {bytes_recebidos} | Velocidade de Upload: {bytes_enviados}") 
     for proc in psutil.process_iter():
         dado = {
         'timestamp':timestamp
@@ -356,8 +409,23 @@ while (duracao < 4):
         processos.append(dado)
 
     # Modelado para bd Infomotion
-    #cur.execute(f"insert into registro_servidor (fk_servidor, uso_cpu, uso_ram, uso_disco, qtd_processos, temp_cpu, temp_disco) select 1, '{cpu}', {ram}, '{disco}', {quantidade_processos}, {temperatura_cpu_atual}, {temperatura_disco_atual}")
-    #conexao.commit()
+    sql_insert_registro = """
+        INSERT INTO registro_servidor (
+            fk_servidor, uso_cpu, uso_ram, uso_disco, qtd_processos, 
+            temp_cpu, temp_disco, upload, download, dt_registro
+        ) 
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    
+    valores_registro = (
+        id_servidor, cpu,         
+        ram, disco, quantidade_processos, 
+        temperatura_cpu_atual, temperatura_disco_atual, 
+        bytes_enviados, bytes_recebidos, timestamp
+    )
+    
+    cur.execute(sql_insert_registro, valores_registro)
+    conexao.commit()
 
     duracao+=1
     time.sleep(1)
