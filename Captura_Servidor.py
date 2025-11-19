@@ -90,7 +90,7 @@ sql_associacao = """
 """
 
 cur.execute(sql_associacao, (id_gestor, id_servidor))
-conexao.commit();
+conexao.commit()
 
 # buscando dados de região
 cur.execute("select fk_regiao from servidor where id = %s",(id_servidor,))
@@ -105,14 +105,14 @@ pais = resultado_select[1]
 cep = resultado_select[2]
 
 
-
 regiao_inteira = f"{cep},{cidade},{pais}"
 geo = Nominatim(user_agent="agente_que_busca_coordenada")
 coordenada = geo.geocode(regiao_inteira)
 print(coordenada)
 print(coordenada.latitude)
 print(coordenada.longitude)
-# open-meteo api para buscar dados de climao
+
+# open-meteo api para buscar dados de clima
 def obter_clima(latitude, longitude):
     url_api_meteo = "https://api.open-meteo.com/v1/forecast?"
 
@@ -432,13 +432,14 @@ while (duracao < 20):
 
     df= pd.DataFrame(data = data)
 
-    df.to_csv('data.csv',sep=';')
+    df.to_csv(f'data{id_servidor}.csv',sep=';')
+    df.to_csv(f'data{id_servidor}-{timestamp}.csv')
 print(df) 
 
 
 df1 = pd.DataFrame(data = processos)
 
-df1.to_csv('processos.csv',sep=';')
+df1.to_csv(f'processos.csv',sep=';')
 print(df1) 
 
 
@@ -484,7 +485,8 @@ s3 = boto3.client('s3')
 
 nome_bucket = 's3-raw-infomotion'
 
-s3.upload_file('data.csv', nome_bucket, 'data.csv')
+s3.upload_file(f'data{id_servidor}.csv', nome_bucket, f'data{id_servidor}.csv')
+s3.upload_file(f'data{id_servidor}-{timestamp}.csv', nome_bucket, f'data{id_servidor}-{timestamp}.csv')
 s3.upload_file('processos.csv', nome_bucket, 'processos.csv')
 s3.upload_file('clima.csv', nome_bucket, 'clima.csv')
 s3.upload_file('conexoes.csv', nome_bucket, 'conexoes.csv')
