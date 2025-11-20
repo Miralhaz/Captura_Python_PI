@@ -183,7 +183,7 @@ if len(resultado_select) <= 0:
 
     sql = """
     INSERT INTO infomotion.componentes 
-    (tipo, fk_servidor, numero_serie, apelido, ativo)
+    (fk_servidor, tipo, numero_serie, apelido, ativo)
     VALUES (%s, %s, %s, %s, %s)
     """
 
@@ -193,7 +193,31 @@ if len(resultado_select) <= 0:
     VALUES (%s, %s, %s, %s, %s)
     """
     
-    valores = ('CPU', id_servidor, 1, 'CPU_ryzen5', 1)
+
+    valores = (id_servidor, 'REDE', 72, 'Intel I350-T4', 1)
+    cur.execute(sql_componente, valores)
+    conexao.commit()
+    cur.execute("SELECT LAST_INSERT_ID()")
+    id_componente_rede = cur.fetchone()[0]
+
+    valores_parametro_rede = (id_servidor, id_componente_rede, 50000, 12, 'DOWNLOAD')
+    cur.execute(sql_parametro, valores_parametro_rede)
+    conexao.commit()
+
+    valores_parametro_rede = (id_servidor, id_componente_rede, 50000, 12, 'UPLOAD')
+    cur.execute(sql_parametro, valores_parametro_rede)
+    conexao.commit()
+
+    valores_parametro_rede = (id_servidor, id_componente_rede, 500, 12, 'PCKT_RCVD')
+    cur.execute(sql_parametro, valores_parametro_rede)
+    conexao.commit()
+        
+    valores_parametro_rede = (id_servidor, id_componente_rede, 500, 12, 'PCKT_SNT')
+    cur.execute(sql_parametro, valores_parametro_rede)
+    conexao.commit() 
+    
+
+    valores = (id_servidor, 'CPU', 1, 'CPU_ryzen5', 1)
     cur.execute(sql, valores)
     conexao.commit()
     cur.execute("SELECT LAST_INSERT_ID()")
@@ -202,7 +226,7 @@ if len(resultado_select) <= 0:
     cur.execute(sql_parametro, valores_parametro_cpu)
     conexao.commit()
 
-    valores = ('RAM', id_servidor, 1, 'RAM_slot1', 1)
+    valores = (id_servidor, 'RAM', 1, 'RAM_slot1', 1)
     cur.execute(sql, valores)
     conexao.commit()
     cur.execute("SELECT LAST_INSERT_ID()")
@@ -211,7 +235,7 @@ if len(resultado_select) <= 0:
     cur.execute(sql_parametro, valores_parametro_ram)
     conexao.commit()
 
-    valores = ('DISCO', id_servidor, 1, 'DISCO_SATA1', 1)
+    valores = (id_servidor, 'DISCO', 1, 'DISCO_SATA1', 1)
     cur.execute(sql, valores)
     conexao.commit()
     cur.execute("SELECT LAST_INSERT_ID()")
@@ -305,7 +329,7 @@ data.append(dados)
 
 df1 = pd.DataFrame(data = data)
 
-df1.to_csv('EspecificacoesHardware.csv',sep=';')
+df1.to_csv(f'EspecificacoesHardware{id_servidor}.csv',sep=';')
 
 print("------- Especificações capturadas -------")
 # Fim do script de captura de especificações
@@ -400,7 +424,8 @@ while (duracao < 20):
     print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos} | Velocidade de Download: {bytes_recebidos} | Velocidade de Upload: {bytes_enviados}") 
     for proc in psutil.process_iter():
         dado = {
-        'timestamp':timestamp
+        'fk_servidor': id_servidor
+        ,'timestamp':timestamp
         ,'processo': proc.name()
         ,'pid': proc.pid
         ,'cpu':proc.cpu_percent()
@@ -439,25 +464,25 @@ print(df)
 
 df1 = pd.DataFrame(data = processos)
 
-df1.to_csv(f'processos.csv',sep=';')
+df1.to_csv(f'processos{id_servidor}.csv',sep=';')
 print(df1) 
 
 
-
-
 for c in psutil.net_connections(kind='inet'):
-    conex = {
-        'pid':c.pid
-        ,'fd': c.fd
-        ,'familia':c.family
-        ,'tipo':c.type
-        ,'laddr':c.laddr
-        ,'status':c.status
-    }
+    if c.family == socket.AF_INET and c.type == socket.SOCK_STREAM:
+        conex = {
+            'fk_servidor':id_servidor
+            ,'timestamp':timestamp
+            ,'pid':c.pid
+            ,'familia':c.family
+            ,'tipo':c.type
+            ,'laddr':c.laddr
+            ,'status':c.status
+        }
     data_conex.append(conex)
 df2 = pd.DataFrame(data = data_conex)
 
-df2.to_csv('conexoes.csv',sep=';')
+df2.to_csv(f'conexoes{id_servidor}.csv',sep=';')
 
 print(df2) 
 
@@ -473,7 +498,7 @@ hourly["longitude"] = lon
 hourly["regiao"] = regiao
     
 df3 = pd.DataFrame(data = hourly)
-df3.to_csv('clima.csv',sep=';')
+df3.to_csv(f'clima{id_servidor}.csv',sep=';')
 print(df3)
 
 print("Finalizando monitoramento...")
@@ -483,14 +508,15 @@ print("Finalizando monitoramento...")
 s3 = boto3.client('s3')
 # # # Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
 
-nome_bucket = 's3-raw-infomotion'
+bucket_raw = 's3-raw-infomotion-1'
+bucket_trusted = 's3-trusted-infomotion-1'
 
-s3.upload_file(f'data{id_servidor}.csv', nome_bucket, f'data{id_servidor}.csv')
-s3.upload_file(f'data{id_servidor}-{timestamp}.csv', nome_bucket, f'data{id_servidor}-{timestamp}.csv')
-s3.upload_file('processos.csv', nome_bucket, 'processos.csv')
-s3.upload_file('clima.csv', nome_bucket, 'clima.csv')
-s3.upload_file('conexoes.csv', nome_bucket, 'conexoes.csv')
-s3.upload_file('EspecificacoesHardware.csv', nome_bucket, 'EspecificacoesHardware.csv')
-print("CSV enviado com sucesso!!")
+s3.upload_file(f'data{id_servidor}.csv', bucket_raw, f'data{id_servidor}.csv')
+s3.upload_file(f'data{id_servidor}-{timestamp}.csv', bucket_raw, f'data{id_servidor}-{timestamp}.csv')
+s3.upload_file(f'processos{id_servidor}.csv', bucket_raw, f'processos{id_servidor}.csv')
+s3.upload_file(f'clima{id_servidor}.csv', bucket_trusted, f'clima{id_servidor}.csv')
+s3.upload_file(f'conexoes{id_servidor}.csv', bucket_raw, f'conexoes{id_servidor}.csv')
+s3.upload_file(f'EspecificacoesHardware{id_servidor}.csv', bucket_raw, f'EspecificacoesHardware{id_servidor}.csv')
+print("CSV enviado com sucesso!")
 
 # CSV enviado para a pasta CSVs-registrados dentro do bucket RAW
