@@ -195,7 +195,7 @@ if len(resultado_select) <= 0:
     
 
     valores = (id_servidor, 'REDE', 72, 'Intel I350-T4', 1)
-    cur.execute(sql_componente, valores)
+    cur.execute(sql, valores)
     conexao.commit()
     cur.execute("SELECT LAST_INSERT_ID()")
     id_componente_rede = cur.fetchone()[0]
@@ -457,8 +457,10 @@ while (duracao < 20):
 
     df= pd.DataFrame(data = data)
 
+    data_arquivo = datetime.now().strftime("%Y-%m-%d")
+
     df.to_csv(f'data{id_servidor}.csv',sep=';')
-    df.to_csv(f'data{id_servidor}-{timestamp}.csv')
+    df.to_csv(f'data{id_servidor}-{data_arquivo}.csv')
 print(df) 
 
 
@@ -512,7 +514,7 @@ bucket_raw = 's3-raw-infomotion-1'
 bucket_trusted = 's3-trusted-infomotion-1'
 
 s3.upload_file(f'data{id_servidor}.csv', bucket_raw, f'data{id_servidor}.csv')
-s3.upload_file(f'data{id_servidor}-{timestamp}.csv', bucket_raw, f'data{id_servidor}-{timestamp}.csv')
+s3.upload_file(f'data{id_servidor}-{data_arquivo}.csv', bucket_raw, f'data{id_servidor}-{data_arquivo}.csv')
 s3.upload_file(f'processos{id_servidor}.csv', bucket_raw, f'processos{id_servidor}.csv')
 s3.upload_file(f'clima{id_servidor}.csv', bucket_trusted, f'clima{id_servidor}.csv')
 s3.upload_file(f'conexoes{id_servidor}.csv', bucket_raw, f'conexoes{id_servidor}.csv')
