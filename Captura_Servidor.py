@@ -423,15 +423,21 @@ while (duracao < 20):
     time.sleep(2)
     print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos} | Velocidade de Download: {bytes_recebidos} | Velocidade de Upload: {bytes_enviados}") 
     for proc in psutil.process_iter():
-        dado = {
-        'fk_servidor': id_servidor
-        ,'timestamp':timestamp
-        ,'processo': proc.name()
-        ,'pid': proc.pid
-        ,'cpu':proc.cpu_percent()
-        ,'ram': round(proc.memory_percent(),4)
-    }
-        processos.append(dado)
+        try:
+            dado_proc = {
+                'fk_servidor': id_servidor
+                ,'timestamp':timestamp
+                ,'processo': proc.name()
+                ,'pid': proc.pid
+                ,'cpu': proc.cpu_percent()
+                ,'ram': round(proc.memory_percent(),4)
+            }
+            processos.append(dado_proc)
+        except psutil.NoSuchProcess:
+            continue
+        except Exception as e:
+            print(f"Aviso: Erro inesperado ao coletar dado do processo {proc.pid}: {e}")
+            continue
 
     # Modelado para bd Infomotion
     sql_insert_registro = """
@@ -467,6 +473,7 @@ print(df)
 df1 = pd.DataFrame(data = processos)
 
 df1.to_csv(f'processos{id_servidor}.csv',sep=';')
+df1.to_csv(f'processos{id_servidor}-{data_arquivo}.csv')
 print(df1) 
 
 
@@ -481,11 +488,11 @@ for c in psutil.net_connections(kind='inet'):
             ,'laddr':c.laddr
             ,'status':c.status
         }
-    data_conex.append(conex)
+        data_conex.append(conex)
 df2 = pd.DataFrame(data = data_conex)
 
 df2.to_csv(f'conexoes{id_servidor}.csv',sep=';')
-df2.to_csv(f'conexoes{id_servidor}{timestamp}.csv',sep=';')
+df2.to_csv(f'conexoes{id_servidor}-{data_arquivo}.csv',sep=';')
 
 print(df2) 
 
