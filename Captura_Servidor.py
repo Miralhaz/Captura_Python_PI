@@ -485,6 +485,7 @@ for c in psutil.net_connections(kind='inet'):
 df2 = pd.DataFrame(data = data_conex)
 
 df2.to_csv(f'conexoes{id_servidor}.csv',sep=';')
+df2.to_csv(f'conexoes{id_servidor}{timestamp}.csv',sep=';')
 
 print(df2) 
 
