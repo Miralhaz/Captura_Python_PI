@@ -28,8 +28,8 @@ else:
     print("Não foi possível encontrar um endereço IP válido. Verifique se há uma conexão de rede ativa.")
 
 print("Credenciais do banco de dados MySQL")
-opcaouser = "root"
-opcaopassword = "041316miralha"
+opcaouser = "aluno"
+opcaopassword = "1234"
 opcaodatabase = "infomotion"
 
 try:
@@ -294,20 +294,27 @@ if len(resultado_select) <= 0:
 
 
 for particao in Particoes:
-    
     contador += 1
-    total  = round(psutil.disk_usage("/").total / (1024**3),2)  
-    print(f"QUantidade total da partição {contador}: {total}")
-
+    # Use the partition's mountpoint when asking for disk usage
     usoDisco = psutil.disk_usage(particao.mountpoint)
+    total  = round(usoDisco.total / (1024**3),2)
+    usado_gb = round(usoDisco.used / (1024**3),2)
+    uso_percent = usoDisco.percent
+    # Save the percent usage for this partition to include later in the 'dados' dict
+    particoes_percent = f"Uso partição {} (%)"
+    print(f"Quantidade total da partição {contador}: {total} GB")
     print(f"Endereço da partição: {particao.device}")
     print(f"Tipo do file system: {particao.fstype}")
     print(f"Endereço do mountpoint: {particao.mountpoint}")
     print(f"Opções da partição {particao.opts}")
-    print(f"Uso da partição {round(usoDisco.total / (1024**3),2)}GB")
+    # Print more useful info: total, used and percent used for each partition
+    print(f"Uso da partição {contador}: {usado_gb}GB / {total}GB ({uso_percent}%)")
 
     if len(resultado_select) <= 0:
-        cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Espaço na partição {contador} (GB)', '{round(usoDisco.total / (1024**3),2)}', id from componentes where tipo = 'DISCO';")
+        # Save partition total space and percent usage as specifications
+        cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Espaço na partição {contador} (GB)', %s, id from componentes where tipo = 'DISCO';", (f'{total}',))
+        conexao.commit()
+        cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Uso partição {contador} (%)', %s, id from componentes where tipo = 'DISCO';", (f'{uso_percent}',))
         conexao.commit()
         cur.execute("insert into especificacao_componente (nome_especificacao, valor, fk_componente) "
         "select %s, %s, id from componentes where tipo = 'DISCO';",
@@ -322,8 +329,10 @@ dados = {
     "Quantidade de núcleos lógicos": nucleosLogicos,
     "Capacidade total do disco": discoTotal,
     "Quantidade de partições do disco": qtdParticoes,
+    "Uso das partições (%)": particoes_percent,
     "Data e hora da captura": timestamp
 }
+
 
 data.append(dados)
 
@@ -439,25 +448,6 @@ while (duracao < 20):
             print(f"Aviso: Erro inesperado ao coletar dado do processo {proc.pid}: {e}")
             continue
 
-    # Modelado para bd Infomotion
-    sql_insert_registro = """
-        INSERT INTO registro_servidor (
-            fk_servidor, uso_cpu, uso_ram, uso_disco, qtd_processos, 
-            temp_cpu, temp_disco, upload, download, dt_registro
-        ) 
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """
-    
-    valores_registro = (
-        id_servidor, cpu,         
-        ram, disco, quantidade_processos, 
-        temperatura_cpu_atual, temperatura_disco_atual, 
-        bytes_enviados, bytes_recebidos, timestamp
-    )
-    
-    cur.execute(sql_insert_registro, valores_registro)
-    conexao.commit()
-
     duracao+=1
     time.sleep(1)
 
@@ -477,24 +467,47 @@ df1.to_csv(f'processos{id_servidor}-{data_arquivo}.csv')
 print(df1) 
 
 
+print("\n------- CAPTURA DE CONEXÕES -------\n")
+
 for c in psutil.net_connections(kind='inet'):
-    if c.family == socket.AF_INET and c.type == socket.SOCK_STREAM:
-        conex = {
-            'fk_servidor':id_servidor
-            ,'timestamp':timestamp
-            ,'pid':c.pid
-            ,'familia':c.family
-            ,'tipo':c.type
-            ,'laddr':c.laddr
-            ,'status':c.status
-        }
-        data_conex.append(conex)
-df2 = pd.DataFrame(data = data_conex)
+    try:
+        # Valida se a conexão tem endereço remoto
+        if not c.raddr:
+            continue
+        
+        # Obtém o processo
+        try:
+            processo = psutil.Process(c.pid)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            # Pula processos que não podem ser acessados
+            continue
+        
+        
+        if c.family == socket.AF_INET and c.type == socket.SOCK_STREAM and processo.name() != "System Idle Process" and c.raddr.ip != '127.0.0.1':
+            conex = {
+                'nome_processo': processo.name(),
+                'fk_servidor': id_servidor,
+                'timestamp': timestamp,
+                'pid': c.pid,
+                'familia': c.family,
+                'tipo': c.type,
+                'laddr': str(c.laddr.ip) + ':' + str(c.laddr.port),
+                'raddr': str(c.raddr.ip) + ':' + str(c.raddr.port),
+                'status': c.status
+            }
+            data_conex.append(conex)
+    
+    except Exception as e:
+        # Log de erros inesperados
+        print(f"Aviso: Erro ao processar conexão {c.pid}: {e}")
+        continue
 
-df2.to_csv(f'conexoes{id_servidor}.csv',sep=';')
-df2.to_csv(f'conexoes{id_servidor}-{data_arquivo}.csv',sep=';')
+df2 = pd.DataFrame(data=data_conex)
+df2.to_csv(f'conexoes{id_servidor}.csv', sep=';')
+df2.to_csv(f'conexoes{id_servidor}-{data_arquivo}.csv', sep=';')
 
-print(df2) 
+print(df2)
+print("\n------- CAPTURA DE CONEXÕES CONCLUÍDA -------\n") 
 
 print("\n------- CAPTURA DE PROCESSOS -------\n")
 
