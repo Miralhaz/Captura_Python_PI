@@ -28,8 +28,8 @@ else:
     print("Não foi possível encontrar um endereço IP válido. Verifique se há uma conexão de rede ativa.")
 
 print("Credenciais do banco de dados MySQL")
-opcaouser = "aluno"
-opcaopassword = "1234"
+opcaouser = "root"
+opcaopassword = "Ren@n2005"
 opcaodatabase = "infomotion"
 
 try:
@@ -295,23 +295,18 @@ if len(resultado_select) <= 0:
 
 for particao in Particoes:
     contador += 1
-    # Use the partition's mountpoint when asking for disk usage
     usoDisco = psutil.disk_usage(particao.mountpoint)
     total  = round(usoDisco.total / (1024**3),2)
     usado_gb = round(usoDisco.used / (1024**3),2)
     uso_percent = usoDisco.percent
-    # Save the percent usage for this partition to include later in the 'dados' dict
-    particoes_percent = f"Uso partição {} (%)"
     print(f"Quantidade total da partição {contador}: {total} GB")
     print(f"Endereço da partição: {particao.device}")
     print(f"Tipo do file system: {particao.fstype}")
     print(f"Endereço do mountpoint: {particao.mountpoint}")
     print(f"Opções da partição {particao.opts}")
-    # Print more useful info: total, used and percent used for each partition
     print(f"Uso da partição {contador}: {usado_gb}GB / {total}GB ({uso_percent}%)")
 
     if len(resultado_select) <= 0:
-        # Save partition total space and percent usage as specifications
         cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Espaço na partição {contador} (GB)', %s, id from componentes where tipo = 'DISCO';", (f'{total}',))
         conexao.commit()
         cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Uso partição {contador} (%)', %s, id from componentes where tipo = 'DISCO';", (f'{uso_percent}',))
@@ -323,13 +318,14 @@ for particao in Particoes:
         conexao.commit()
 
 dados = {
+    "fk_servidor": id_servidor,
     "Swap total ": swapTotal,
     "Ram total": ramTotal,
     "Quantidade de CPUs ": nucleosFisicos,
     "Quantidade de núcleos lógicos": nucleosLogicos,
     "Capacidade total do disco": discoTotal,
     "Quantidade de partições do disco": qtdParticoes,
-    "Uso das partições (%)": particoes_percent,
+    "Uso das partições (%)": uso_percent,
     "Data e hora da captura": timestamp
 }
 
