@@ -269,8 +269,9 @@ nucleosLogicos = psutil.cpu_count(logical=True)
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+qtdParticoes = 0 
 for item in Particoes:
-        qtdParticoes += 1
+    qtdParticoes += 1
 
 print(f"Swap total: {swapTotal}")
 print(f"Ram total: {ramTotal}")
@@ -278,6 +279,7 @@ print(f"Quantidade de CPUs: {nucleosFisicos}")
 print(f"Quantidade de núcleos: {nucleosLogicos}")
 print(f"Quantidade de partições: {qtdParticoes}")
 
+# (Seus inserts iniciais continuam iguais aqui...)
 if len(resultado_select) <= 0:
     cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Swap total (GB)', '{swapTotal}', id from componentes where tipo = 'DISCO';")
     conexao.commit()
@@ -293,29 +295,46 @@ if len(resultado_select) <= 0:
     conexao.commit()
 
 
+# --- CORREÇÃO 2: Criar uma lista para acumular os textos das partições ---
+lista_info_particoes = []
+contador = 0 # Resetando contador para garantir
+
 for particao in Particoes:
     contador += 1
-    usoDisco = psutil.disk_usage(particao.mountpoint)
-    total  = round(usoDisco.total / (1024**3),2)
-    usado_gb = round(usoDisco.used / (1024**3),2)
-    uso_percent = usoDisco.percent
-    print(f"Quantidade total da partição {contador}: {total} GB")
-    print(f"Endereço da partição: {particao.device}")
-    print(f"Tipo do file system: {particao.fstype}")
-    print(f"Endereço do mountpoint: {particao.mountpoint}")
-    print(f"Opções da partição {particao.opts}")
-    print(f"Uso da partição {contador}: {usado_gb}GB / {total}GB ({uso_percent}%)")
+    try:
+        usoDisco = psutil.disk_usage(particao.mountpoint)
+        total  = round(usoDisco.total / (1024**3),2)
+        usado_gb = round(usoDisco.used / (1024**3),2)
+        uso_percent = usoDisco.percent
+        
+        # Guardando na lista: Ex: "C:\: 45.5%"
+        texto_particao = f"{particao.mountpoint}: {uso_percent}%"
+        lista_info_particoes.append(texto_particao)
 
-    if len(resultado_select) <= 0:
-        cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Espaço na partição {contador} (GB)', %s, id from componentes where tipo = 'DISCO';", (f'{total}',))
-        conexao.commit()
-        cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Uso partição {contador} (%)', %s, id from componentes where tipo = 'DISCO';", (f'{uso_percent}',))
-        conexao.commit()
-        cur.execute("insert into especificacao_componente (nome_especificacao, valor, fk_componente) "
-        "select %s, %s, id from componentes where tipo = 'DISCO';",
-        (f"MountPoint da partição {contador}", particao.mountpoint)
-        )
-        conexao.commit()
+        print(f"Quantidade total da partição {contador}: {total} GB")
+        print(f"Endereço da partição: {particao.device}")
+        print(f"Tipo do file system: {particao.fstype}")
+        print(f"Endereço do mountpoint: {particao.mountpoint}")
+        print(f"Opções da partição {particao.opts}")
+        print(f"Uso da partição {contador}: {usado_gb}GB / {total}GB ({uso_percent}%)")
+
+        if len(resultado_select) <= 0:
+            cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Espaço na partição {contador} (GB)', %s, id from componentes where tipo = 'DISCO';", (f'{total}',))
+            conexao.commit()
+            cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Uso partição {contador} (%)', %s, id from componentes where tipo = 'DISCO';", (f'{uso_percent}',))
+            conexao.commit()
+            cur.execute("insert into especificacao_componente (nome_especificacao, valor, fk_componente) "
+            "select %s, %s, id from componentes where tipo = 'DISCO';",
+            (f"MountPoint da partição {contador}", particao.mountpoint)
+            )
+            conexao.commit()
+            
+    except PermissionError:
+        # Pula partições que o Windows bloqueia (como de recuperação)
+        continue
+
+# --- CORREÇÃO 3: Juntar tudo numa string só separada por " | " ---
+texto_final_particoes = " | ".join(lista_info_particoes)
 
 dados = {
     "fk_servidor": id_servidor,
@@ -325,16 +344,16 @@ dados = {
     "Quantidade de núcleos lógicos": nucleosLogicos,
     "Capacidade total do disco": discoTotal,
     "Quantidade de partições do disco": qtdParticoes,
-    "Uso das partições (%)": uso_percent,
+    "Uso das partições (%)": texto_final_particoes, 
     "Data e hora da captura": timestamp
 }
-
 
 data.append(dados)
 
 df1 = pd.DataFrame(data = data)
 
 df1.to_csv(f'EspecificacoesHardware{id_servidor}.csv',sep=';')
+print("Arquivo CSV gerado com sucesso.")
 
 print("------- Especificações capturadas -------")
 # Fim do script de captura de especificações
@@ -378,6 +397,7 @@ while (duracao < 20):
     temperatura_disco_atual = round(temp_disco_base + variacao_disco, 2)
     memoria_swap = round(psutil.swap_memory().used / (1024 * 1024), 2)
     processos_maquina = psutil.process_iter()
+    print(list(psutil.net_io_counters(pernic=True).keys()))
     processos_list = list(processos_maquina)
     quantidade_processos = len(processos_list)
     net = psutil.net_io_counters(pernic=True)
