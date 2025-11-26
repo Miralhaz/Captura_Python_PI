@@ -29,7 +29,7 @@ else:
 
 print("Credenciais do banco de dados MySQL")
 opcaouser = "root"
-opcaopassword = "Ren@n2005"
+opcaopassword = "041316miralha"
 opcaodatabase = "infomotion"
 
 try:
@@ -176,8 +176,12 @@ resultado_select = cur.fetchall()
 param_cpu = '79'
 param_ram = '61'
 param_disco = '52'
-duracao = '0'
+param_temp_cpu = '90'
+param_temp_disco = '55'
+duracao_temp_cpu = '1'
+duracao = '3'
 unidade = '%'
+unidade_temp = 'C'
 
 if len(resultado_select) <= 0:
 
@@ -225,6 +229,9 @@ if len(resultado_select) <= 0:
     valores_parametro_cpu = (id_servidor, id_componente_cpu, param_cpu, duracao, unidade)
     cur.execute(sql_parametro, valores_parametro_cpu)
     conexao.commit()
+    valores_parametro_temp_cpu = (id_servidor, id_componente_cpu, param_temp_cpu, duracao_temp_cpu, unidade_temp)
+    cur.execute(sql_parametro, valores_parametro_temp_cpu)
+    conexao.commit()
 
     valores = (id_servidor, 'RAM', 1, 'RAM_slot1', 1)
     cur.execute(sql, valores)
@@ -242,6 +249,9 @@ if len(resultado_select) <= 0:
     id_componente_disco = cur.fetchone()[0]
     valores_parametro_disco = (id_servidor, id_componente_disco, param_disco, duracao, unidade)
     cur.execute(sql_parametro, valores_parametro_disco)
+    conexao.commit()
+    valores_parametro_temp_disco = (id_servidor, id_componente_disco, param_temp_disco, duracao, unidade_temp)
+    cur.execute(sql_parametro, valores_parametro_temp_disco)
     conexao.commit()
 
 print("\n=== Componentes capturados ===")
