@@ -9,6 +9,8 @@ import boto3
 from geopy.geocoders import Nominatim
 import requests
 import random
+import os
+import glob
 
 # resgatando ip da maquina
 ipmaq = 0.0
@@ -29,12 +31,12 @@ else:
 
 print("Credenciais do banco de dados MySQL")
 opcaouser = "root"
-opcaopassword = "041316miralha"
+opcaopassword = "1234"
 opcaodatabase = "infomotion"
 
 try:
     conexao = mysql.connect(
-                host="localhost",      
+                host="3.230.162.181",      
                 user=opcaouser,
                 password=opcaopassword,
                 database=opcaodatabase,
@@ -53,7 +55,7 @@ nomeMaquina = platform.node()
 print(f"Nome da Máquina: {nomeMaquina}")
 
 id_empresa = 1
-id_regiao = 4
+id_regiao = 1
 id_gestor = 1
 
 # Cadastra servidor no banco
@@ -76,7 +78,7 @@ if resultado_select:
         conexao.commit()
 
 else:
-    cur.execute("INSERT INTO servidor (apelido, ip, fk_empresa, ativo) VALUES (%s, %s, %s, %s)", (nomeMaquina, ipmaq, id_empresa, 1))
+    cur.execute("INSERT INTO servidor (apelido, ip, fk_empresa, ativo, fk_regiao) VALUES (%s, %s, %s, %s, %s)", (nomeMaquina, ipmaq, id_empresa, 1, id_regiao))
     conexao.commit()
     cur.execute("SELECT LAST_INSERT_ID()")
     id_servidor = cur.fetchone()[0]
@@ -411,12 +413,12 @@ while (duracao < 20):
     processos_list = list(processos_maquina)
     quantidade_processos = len(processos_list)
     net = psutil.net_io_counters(pernic=True)
-    bytes_recebidos =  net['Wi-Fi'].bytes_recv 
-    bytes_enviados = net['Wi-Fi'].bytes_sent
-    pacotes_recebidos =  net['Wi-Fi'].packets_recv
-    pacotes_enviados =  net['Wi-Fi'].packets_sent
-    dropin = net["Wi-Fi"].dropin
-    dropout = net["Wi-Fi"].dropout
+    bytes_recebidos =  net['Wi-fi'].bytes_recv 
+    bytes_enviados = net['Wi-fi'].bytes_sent
+    pacotes_recebidos =  net['Wi-fi'].packets_recv
+    pacotes_enviados =  net['Wi-fi'].packets_sent
+    dropin = net["Wi-fi"].dropin
+    dropout = net["Wi-fi"].dropout
     leitura_escrita_disco = psutil.disk_io_counters(perdisk=False, nowrap=True)
     numero_leituras = leitura_escrita_disco.read_count
     numero_escritas = leitura_escrita_disco.write_count
@@ -479,10 +481,10 @@ while (duracao < 20):
 
     df= pd.DataFrame(data = data)
 
-    data_arquivo = datetime.now().strftime("%Y-%m-%d")
+    data_arquivo = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     df.to_csv(f'data{id_servidor}.csv',sep=';')
-    df.to_csv(f'data{id_servidor}-{data_arquivo}.csv')
+    df.to_csv(f"data{id_servidor}-{data_arquivo}.csv")
 print(df) 
 
 
@@ -567,5 +569,14 @@ s3.upload_file(f'clima{id_servidor}.csv', bucket_trusted, f'clima{id_servidor}.c
 s3.upload_file(f'conexoes{id_servidor}.csv', bucket_raw, f'conexoes{id_servidor}.csv')
 s3.upload_file(f'EspecificacoesHardware{id_servidor}.csv', bucket_raw, f'EspecificacoesHardware{id_servidor}.csv')
 print("CSV enviado com sucesso!")
+print("Apagando arquivos locais")
+arquivos = glob.glob("*.csv")
+    
+for arquivo in arquivos:
+    try:
+        os.remove(arquivo)
+        print(f"Arquivo removido: {arquivo}")
+    except OSError as e:
+        print(f"Erro ao remover {arquivo}: {e}")
 
 # CSV enviado para a pasta CSVs-registrados dentro do bucket RAW
