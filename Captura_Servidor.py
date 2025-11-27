@@ -31,12 +31,12 @@ else:
 
 print("Credenciais do banco de dados MySQL")
 opcaouser = "root"
-opcaopassword = "1234"
+opcaopassword = "041316miralha"
 opcaodatabase = "infomotion"
 
 try:
     conexao = mysql.connect(
-                host="3.230.162.181",      
+                host="localhost",      
                 user=opcaouser,
                 password=opcaopassword,
                 database=opcaodatabase,
@@ -378,11 +378,6 @@ time.sleep(1)
 contador = 0
 
 
-processos = []
-data = []
-data_conex = []
-
-
 print("\nIniciando monitoramento...")
 print("\n------- CAPTURA DE CPU, RAM E DISCO -------")
 
@@ -395,10 +390,25 @@ cur.execute("""
     )
 """)
 conexao.commit()
-duracao = 0
+
 temp_cpu_base = 45.0
 temp_disco_base = 35.0
-while (duracao < 20):
+
+tempo_captura_csv = 120 # segundos
+intervalo_de_capturas = 5 # 5 em 5 segundos faz uma captura
+
+tempo_decorrido = 0
+
+processos = []
+data = []
+data_conex = []
+
+s3 = boto3.client('s3')
+bucket_raw = 's3-raw-infomotion-1'
+bucket_trusted = 's3-trusted-infomotion-1'
+
+while True:
+
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cpu = psutil.cpu_percent()  
     ram = psutil.virtual_memory().percent  
@@ -413,12 +423,12 @@ while (duracao < 20):
     processos_list = list(processos_maquina)
     quantidade_processos = len(processos_list)
     net = psutil.net_io_counters(pernic=True)
-    bytes_recebidos =  net['Wi-fi'].bytes_recv 
-    bytes_enviados = net['Wi-fi'].bytes_sent
-    pacotes_recebidos =  net['Wi-fi'].packets_recv
-    pacotes_enviados =  net['Wi-fi'].packets_sent
-    dropin = net["Wi-fi"].dropin
-    dropout = net["Wi-fi"].dropout
+    bytes_recebidos =  net['Wi-Fi'].bytes_recv 
+    bytes_enviados = net['Wi-Fi'].bytes_sent
+    pacotes_recebidos =  net['Wi-Fi'].packets_recv
+    pacotes_enviados =  net['Wi-Fi'].packets_sent
+    dropin = net["Wi-Fi"].dropin
+    dropout = net["Wi-Fi"].dropout
     leitura_escrita_disco = psutil.disk_io_counters(perdisk=False, nowrap=True)
     numero_leituras = leitura_escrita_disco.read_count
     numero_escritas = leitura_escrita_disco.write_count
@@ -428,7 +438,6 @@ while (duracao < 20):
     tempo_escrita = leitura_escrita_disco.write_time
     
 
-   
     dado = {
         'fk_servidor': id_servidor
         ,'nomeMaquina': nomeMaquina
@@ -457,8 +466,9 @@ while (duracao < 20):
  
     # Salva no CSV
     data.append(dado)
-    time.sleep(2)
+    
     print(f"\n ID Servidor: {id_servidor} | Usuário: {nomeMaquina} | {timestamp} | CPU: {cpu}% | RAM: {ram}% | Disco: {disco}% | Temperatura CPU: {temperatura_cpu_atual}ºC | Temperatura Disco: {temperatura_disco_atual}ºC | Memória Swap: {memoria_swap}% | Quantidade de processos: {quantidade_processos} | Velocidade de Download: {bytes_recebidos} | Velocidade de Upload: {bytes_enviados}") 
+
     for proc in psutil.process_iter():
         try:
             dado_proc = {
@@ -476,107 +486,97 @@ while (duracao < 20):
             print(f"Aviso: Erro inesperado ao coletar dado do processo {proc.pid}: {e}")
             continue
 
-    duracao+=1
-    time.sleep(1)
 
-    df= pd.DataFrame(data = data)
-
-    data_arquivo = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-    df.to_csv(f'data{id_servidor}.csv',sep=';')
-    df.to_csv(f"data{id_servidor}-{data_arquivo}.csv")
-print(df) 
-
-
-df1 = pd.DataFrame(data = processos)
-
-df1.to_csv(f'processos{id_servidor}.csv',sep=';')
-df1.to_csv(f'processos{id_servidor}-{data_arquivo}.csv')
-print(df1) 
-
-
-print("\n------- CAPTURA DE CONEXÕES -------\n")
-
-for c in psutil.net_connections(kind='inet'):
-    try:
-        # Valida se a conexão tem endereço remoto
-        if not c.raddr:
-            continue
-        
-        # Obtém o processo
+    for c in psutil.net_connections(kind='inet'):
         try:
-            processo = psutil.Process(c.pid)
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            # Pula processos que não podem ser acessados
+            # Valida se a conexão tem endereço remoto
+            if not c.raddr:
+                continue
+            
+            # Obtém o processo
+            try:
+                processo = psutil.Process(c.pid)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                # Pula processos que não podem ser acessados
+                continue
+            
+            
+            if c.family == socket.AF_INET and c.type == socket.SOCK_STREAM and processo.name() != "System Idle Process" and c.raddr.ip != '127.0.0.1':
+                conex = {
+                    'nome_processo': processo.name(),
+                    'fk_servidor': id_servidor,
+                    'timestamp': timestamp,
+                    'pid': c.pid,
+                    'familia': c.family,
+                    'tipo': c.type,
+                    'laddr': str(c.laddr.ip) + ':' + str(c.laddr.port),
+                    'raddr': str(c.raddr.ip) + ':' + str(c.raddr.port),
+                    'status': c.status
+                }
+                data_conex.append(conex)
+
+        except Exception as e:
+            # Log de erros inesperados
+            print(f"Aviso: Erro ao processar conexão {c.pid}: {e}")
             continue
-        
-        
-        if c.family == socket.AF_INET and c.type == socket.SOCK_STREAM and processo.name() != "System Idle Process" and c.raddr.ip != '127.0.0.1':
-            conex = {
-                'nome_processo': processo.name(),
-                'fk_servidor': id_servidor,
-                'timestamp': timestamp,
-                'pid': c.pid,
-                'familia': c.family,
-                'tipo': c.type,
-                'laddr': str(c.laddr.ip) + ':' + str(c.laddr.port),
-                'raddr': str(c.raddr.ip) + ':' + str(c.raddr.port),
-                'status': c.status
-            }
-            data_conex.append(conex)
-    
-    except Exception as e:
-        # Log de erros inesperados
-        print(f"Aviso: Erro ao processar conexão {c.pid}: {e}")
-        continue
-
-df2 = pd.DataFrame(data=data_conex)
-df2.to_csv(f'conexoes{id_servidor}.csv', sep=';')
-df2.to_csv(f'conexoes{id_servidor}-{data_arquivo}.csv', sep=';')
-
-print(df2)
-print("\n------- CAPTURA DE CONEXÕES CONCLUÍDA -------\n") 
-
-print("\n------- CAPTURA DE PROCESSOS -------\n")
 
 
-lat = coordenada.latitude
-lon = coordenada.longitude
-clima = obter_clima(lat,lon)
-hourly = clima['hourly']
-hourly["latitude"] = lat
-hourly["longitude"] = lon
-hourly["regiao"] = regiao
-    
-df3 = pd.DataFrame(data = hourly)
-df3.to_csv(f'clima{id_servidor}.csv',sep=';')
-print(df3)
+    time.sleep(intervalo_de_capturas)
+    tempo_decorrido += intervalo_de_capturas
 
-print("Finalizando monitoramento...")
-# Fim do script de capturar metricas
-# Enviando o CSV para o bucket na ac2
 
-s3 = boto3.client('s3')
-# # # Configurar a AWS Credentials antes de rodar, e criar bucket antes de tudo
+    if tempo_decorrido >= tempo_captura_csv:
+            
+            data_arquivo = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            
+            df = pd.DataFrame(data=data)
+            df.to_csv(f'data{id_servidor}.csv', sep=';')
+            df.to_csv(f"data{id_servidor}-{data_arquivo}.csv")
 
-bucket_raw = 's3-raw-infomotion-1'
-bucket_trusted = 's3-trusted-infomotion-1'
+            df1 = pd.DataFrame(data=processos)
+            df1.to_csv(f'processos{id_servidor}.csv', sep=';')
+            df1.to_csv(f'processos{id_servidor}-{data_arquivo}.csv')
+            
+            df2 = pd.DataFrame(data=data_conex)
+            df2.to_csv(f'conexoes{id_servidor}.csv', sep=';')
+            df2.to_csv(f'conexoes{id_servidor}-{data_arquivo}.csv', sep=';')
+            
+            lat = coordenada.latitude
+            lon = coordenada.longitude
+            clima = obter_clima(lat, lon)
+            if clima:
+                hourly = clima['hourly']
+                hourly["latitude"] = lat
+                hourly["longitude"] = lon
+                hourly["regiao"] = regiao
+                df3 = pd.DataFrame(data=hourly)
+                df3.to_csv(f'clima{id_servidor}.csv', sep=';')
+            
+            try:
+                s3.upload_file(f'data{id_servidor}.csv', bucket_raw, f'data{id_servidor}.csv')
+                s3.upload_file(f'data{id_servidor}-{data_arquivo}.csv', bucket_raw, f'data{id_servidor}-{data_arquivo}.csv')
 
-s3.upload_file(f'data{id_servidor}.csv', bucket_raw, f'data{id_servidor}.csv')
-s3.upload_file(f'data{id_servidor}-{data_arquivo}.csv', bucket_raw, f'data{id_servidor}-{data_arquivo}.csv')
-s3.upload_file(f'processos{id_servidor}.csv', bucket_raw, f'processos{id_servidor}.csv')
-s3.upload_file(f'clima{id_servidor}.csv', bucket_trusted, f'clima{id_servidor}.csv')
-s3.upload_file(f'conexoes{id_servidor}.csv', bucket_raw, f'conexoes{id_servidor}.csv')
-s3.upload_file(f'EspecificacoesHardware{id_servidor}.csv', bucket_raw, f'EspecificacoesHardware{id_servidor}.csv')
-print("CSV enviado com sucesso!")
-print("Apagando arquivos locais")
-arquivos = glob.glob("*.csv")
-    
-for arquivo in arquivos:
-    try:
-        os.remove(arquivo)
-        print(f"Arquivo removido: {arquivo}")
-    except OSError as e:
-        print(f"Erro ao remover {arquivo}: {e}")
+                s3.upload_file(f'processos{id_servidor}.csv', bucket_raw, f'processos{id_servidor}.csv')
+                
+                s3.upload_file(f'conexoes{id_servidor}.csv', bucket_raw, f'conexoes{id_servidor}.csv')
+                
+                if clima:
+                    s3.upload_file(f'clima{id_servidor}.csv', bucket_trusted, f'clima{id_servidor}.csv')
+                                
+            except Exception as e:
+                print(f"Erro ao enviar para S3: {e}")
+            
+            arquivos = glob.glob("*.csv")
+            for arquivo in arquivos:
+                if not arquivo.startswith("EspecificacoesHardware"):  
+                    try:
+                        os.remove(arquivo)
+                    except OSError as e:
+                        print(f"Erro ao remover {arquivo}: {e}")
+            
+            tempo_decorrido = 0
+            data = []
+            processos = []
+            data_conex = []
 
-# CSV enviado para a pasta CSVs-registrados dentro do bucket RAW
+            print("\nIniciando outro csv de 2 minutos\n")
