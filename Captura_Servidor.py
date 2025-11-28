@@ -257,12 +257,10 @@ if len(resultado_select) <= 0:
     conexao.commit()
 
 print("\n=== Componentes capturados ===")
-#fim do script que captura informações do componente
 
 time.sleep(1)
 
 
-#Esse script pega as especificações dos componentes, como quantidade de total de ram e numero de nucléos
 contador = 1
 qtdParticoes = 0
 data = []
@@ -291,7 +289,6 @@ print(f"Quantidade de CPUs: {nucleosFisicos}")
 print(f"Quantidade de núcleos: {nucleosLogicos}")
 print(f"Quantidade de partições: {qtdParticoes}")
 
-# (Seus inserts iniciais continuam iguais aqui...)
 if len(resultado_select) <= 0:
     cur.execute(f"insert into especificacao_componente (nome_especificacao, valor, fk_componente) select 'Swap total (GB)', '{swapTotal}', id from componentes where tipo = 'DISCO';")
     conexao.commit()
@@ -307,9 +304,8 @@ if len(resultado_select) <= 0:
     conexao.commit()
 
 
-# --- CORREÇÃO 2: Criar uma lista para acumular os textos das partições ---
 lista_info_particoes = []
-contador = 0 # Resetando contador para garantir
+contador = 0 
 
 for particao in Particoes:
     contador += 1
@@ -319,7 +315,6 @@ for particao in Particoes:
         usado_gb = round(usoDisco.used / (1024**3),2)
         uso_percent = usoDisco.percent
         
-        # Guardando na lista: Ex: "C:\: 45.5%"
         texto_particao = f"{particao.mountpoint}: {uso_percent}%"
         lista_info_particoes.append(texto_particao)
 
@@ -342,10 +337,8 @@ for particao in Particoes:
             conexao.commit()
             
     except PermissionError:
-        # Pula partições que o Windows bloqueia (como de recuperação)
         continue
 
-# --- CORREÇÃO 3: Juntar tudo numa string só separada por " | " ---
 texto_final_particoes = " | ".join(lista_info_particoes)
 
 dados = {
@@ -368,13 +361,11 @@ df1.to_csv(f'EspecificacoesHardware{id_servidor}.csv',sep=';')
 print("Arquivo CSV gerado com sucesso.")
 
 print("------- Especificações capturadas -------")
-# Fim do script de captura de especificações
 
 time.sleep(1)
 
 
 
-#Inicio do script de metricas para o banco de dados
 contador = 0
 
 
