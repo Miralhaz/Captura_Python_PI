@@ -559,11 +559,10 @@ while True:
             
             arquivos = glob.glob("*.csv")
             for arquivo in arquivos:
-                if not arquivo.startswith("EspecificacoesHardware"):  
-                    try:
-                        os.remove(arquivo)
-                    except OSError as e:
-                        print(f"Erro ao remover {arquivo}: {e}")
+                try:
+                    os.remove(arquivo)
+                except OSError as e:
+                    print(f"Erro ao remover {arquivo}: {e}")
             
             tempo_decorrido = 0
             data = []
