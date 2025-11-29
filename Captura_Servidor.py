@@ -31,12 +31,12 @@ else:
 
 print("Credenciais do banco de dados MySQL")
 opcaouser = "root"
-opcaopassword = "041316miralha"
+opcaopassword = "1234"
 opcaodatabase = "infomotion"
 
 try:
     conexao = mysql.connect(
-                host="localhost",      
+                host="100.30.98.27",      
                 user=opcaouser,
                 password=opcaopassword,
                 database=opcaodatabase,
