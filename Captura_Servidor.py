@@ -551,6 +551,8 @@ while True:
                 
                 s3.upload_file(f'conexoes{id_servidor}.csv', bucket_raw, f'conexoes{id_servidor}.csv')
                 
+                s3.upload_file(f'EspecificacoesHardware{id_servidor}.csv', bucket_raw, f'EspecificacoesHardware{id_servidor}.csv')
+                
                 if clima:
                     s3.upload_file(f'clima{id_servidor}.csv', bucket_trusted, f'clima{id_servidor}.csv')
                                 
