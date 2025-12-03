@@ -392,7 +392,6 @@ tempo_decorrido = 0
 
 processos = []
 data = []
-data_conex = []
 
 s3 = boto3.client('s3')
 bucket_raw = 's3-raw-infomotion-1'
@@ -478,39 +477,7 @@ while True:
             continue
 
 
-    for c in psutil.net_connections(kind='inet'):
-        try:
-            # Valida se a conexão tem endereço remoto
-            if not c.raddr:
-                continue
-            
-            # Obtém o processo
-            try:
-                processo = psutil.Process(c.pid)
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                # Pula processos que não podem ser acessados
-                continue
-            
-            
-            if c.family == socket.AF_INET and c.type == socket.SOCK_STREAM and processo.name() != "System Idle Process" and c.raddr.ip != '127.0.0.1':
-                conex = {
-                    'nome_processo': processo.name(),
-                    'fk_servidor': id_servidor,
-                    'timestamp': timestamp,
-                    'pid': c.pid,
-                    'familia': c.family,
-                    'tipo': c.type,
-                    'laddr': str(c.laddr.ip) + ':' + str(c.laddr.port),
-                    'raddr': str(c.raddr.ip) + ':' + str(c.raddr.port),
-                    'status': c.status
-                }
-                data_conex.append(conex)
-
-        except Exception as e:
-            # Log de erros inesperados
-            print(f"Aviso: Erro ao processar conexão {c.pid}: {e}")
-            continue
-
+    
 
     time.sleep(intervalo_de_capturas)
     tempo_decorrido += intervalo_de_capturas
@@ -518,57 +485,94 @@ while True:
 
     if tempo_decorrido >= tempo_captura_csv:
             
-            data_arquivo = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            
-            df = pd.DataFrame(data=data)
-            df.to_csv(f'data{id_servidor}.csv', sep=';')
-            df.to_csv(f"data{id_servidor}-{data_arquivo}.csv")
-
-            df1 = pd.DataFrame(data=processos)
-            df1.to_csv(f'processos{id_servidor}.csv', sep=';')
-            df1.to_csv(f'processos{id_servidor}-{data_arquivo}.csv')
-            
-            df2 = pd.DataFrame(data=data_conex)
-            df2.to_csv(f'conexoes{id_servidor}.csv', sep=';')
-            df2.to_csv(f'conexoes{id_servidor}-{data_arquivo}.csv', sep=';')
-            
-            lat = coordenada.latitude
-            lon = coordenada.longitude
-            clima = obter_clima(lat, lon)
-            if clima:
-                hourly = clima['hourly']
-                hourly["latitude"] = lat
-                hourly["longitude"] = lon
-                hourly["regiao"] = regiao
-                df3 = pd.DataFrame(data=hourly)
-                df3.to_csv(f'clima{id_servidor}.csv', sep=';')
-            
+        data_conex = []
+        for c in psutil.net_connections(kind='inet'):
             try:
-                s3.upload_file(f'data{id_servidor}.csv', bucket_raw, f'data{id_servidor}.csv')
-                s3.upload_file(f'data{id_servidor}-{data_arquivo}.csv', bucket_raw, f'data{id_servidor}-{data_arquivo}.csv')
-
-                s3.upload_file(f'processos{id_servidor}.csv', bucket_raw, f'processos{id_servidor}.csv')
+                # Valida se a conexão tem endereço remoto
+                if not c.raddr:
+                    continue
                 
-                s3.upload_file(f'conexoes{id_servidor}.csv', bucket_raw, f'conexoes{id_servidor}.csv')
-                
-                s3.upload_file(f'EspecificacoesHardware{id_servidor}.csv', bucket_raw, f'EspecificacoesHardware{id_servidor}.csv')
-                
-                if clima:
-                    s3.upload_file(f'clima{id_servidor}.csv', bucket_trusted, f'clima{id_servidor}.csv')
-                                
-            except Exception as e:
-                print(f"Erro ao enviar para S3: {e}")
-            
-            arquivos = glob.glob("*.csv")
-            for arquivo in arquivos:
+                # Obtém o processo
                 try:
-                    os.remove(arquivo)
-                except OSError as e:
-                    print(f"Erro ao remover {arquivo}: {e}")
-            
-            tempo_decorrido = 0
-            data = []
-            processos = []
-            data_conex = []
+                    processo = psutil.Process(c.pid)
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    # Pula processos que não podem ser acessados
+                    continue
+                
+                
+                if c.family == socket.AF_INET and c.type == socket.SOCK_STREAM and processo.name() != "System Idle Process" and c.raddr.ip != '127.0.0.1':
+                    conex = {
+                        'nome_processo': processo.name(),
+                        'fk_servidor': id_servidor,
+                        'timestamp': timestamp,
+                        'pid': c.pid,
+                        'familia': c.family,
+                        'tipo': c.type,
+                        'laddr': str(c.laddr.ip) + ':' + str(c.laddr.port),
+                        'raddr': str(c.raddr.ip) + ':' + str(c.raddr.port),
+                        'status': c.status
+                    }
+                    data_conex.append(conex)
 
-            print("\nIniciando outro csv de 2 minutos\n")
+            except Exception as e:
+                # Log de erros inesperados
+                print(f"Aviso: Erro ao processar conexão {c.pid}: {e}")
+                continue
+
+
+        df2 = pd.DataFrame(data=data_conex)
+        df2.to_csv(f'conexoes{id_servidor}.csv', sep=';')
+
+        s3.upload_file(f'conexoes{id_servidor}.csv', bucket_raw, f'conexoes{id_servidor}.csv')
+            
+        data_arquivo = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        
+        df = pd.DataFrame(data=data)
+        df.to_csv(f'data{id_servidor}.csv', sep=';')
+        df.to_csv(f"data{id_servidor}-{data_arquivo}.csv")
+
+        df1 = pd.DataFrame(data=processos)
+        df1.to_csv(f'processos{id_servidor}.csv', sep=';')
+        df1.to_csv(f'processos{id_servidor}-{data_arquivo}.csv')
+        
+        
+        
+        lat = coordenada.latitude
+        lon = coordenada.longitude
+        clima = obter_clima(lat, lon)
+        if clima:
+            hourly = clima['hourly']
+            hourly["latitude"] = lat
+            hourly["longitude"] = lon
+            hourly["regiao"] = regiao
+            df3 = pd.DataFrame(data=hourly)
+            df3.to_csv(f'clima{id_servidor}.csv', sep=';')
+        
+        try:
+            s3.upload_file(f'data{id_servidor}.csv', bucket_raw, f'data{id_servidor}.csv')
+            s3.upload_file(f'data{id_servidor}-{data_arquivo}.csv', bucket_raw, f'data{id_servidor}-{data_arquivo}.csv')
+
+            s3.upload_file(f'processos{id_servidor}.csv', bucket_raw, f'processos{id_servidor}.csv')
+            
+            
+            s3.upload_file(f'EspecificacoesHardware{id_servidor}.csv', bucket_raw, f'EspecificacoesHardware{id_servidor}.csv')
+            
+            if clima:
+                s3.upload_file(f'clima{id_servidor}.csv', bucket_trusted, f'clima{id_servidor}.csv')
+                            
+        except Exception as e:
+            print(f"Erro ao enviar para S3: {e}")
+        
+        arquivos = glob.glob("*.csv")
+        for arquivo in arquivos:
+            try:
+                os.remove(arquivo)
+            except OSError as e:
+                print(f"Erro ao remover {arquivo}: {e}")
+        
+        tempo_decorrido = 0
+        data = []
+        processos = []
+        data_conex = []
+
+        print("\nIniciando outro csv de 2 minutos\n")
