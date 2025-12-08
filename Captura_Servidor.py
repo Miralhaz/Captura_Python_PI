@@ -59,7 +59,7 @@ id_regiao = 1
 id_gestor = 1
 
 # Cadastra servidor no banco
-cur.execute("SELECT id, fk_empresa, fk_regiao FROM servidor WHERE apelido = %s", (nomeMaquina,))
+cur.execute("SELECT id, fk_empresa, fk_regiao FROM servidor WHERE ip = %s", (ip,))
 
 resultado_select = cur.fetchone()
 
@@ -383,7 +383,7 @@ cur.execute("""
 conexao.commit()
 
 temp_cpu_base = 45.0
-temp_disco_base = 35.0
+temp_disco_base = 60.0
 
 tempo_captura_csv = 120 # segundos
 intervalo_de_capturas = 5 # 5 em 5 segundos faz uma captura
